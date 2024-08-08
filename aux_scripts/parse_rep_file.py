@@ -57,6 +57,8 @@ with open('Q_reps_refined.csv', 'r') as file:
 d0 = 3
 s = ""
 for c,r,d,i,x in zip(charges,eon,dim,ops,lp):
+   if (c[0] == 8 or c[0] == 27) and (c[2] < 0):
+      continue
    if d != d0:
       s+= "  \midrule\n"
       d0 = d
