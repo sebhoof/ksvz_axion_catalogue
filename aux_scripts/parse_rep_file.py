@@ -69,7 +69,8 @@ s = ""
 for c,r,d,i,x in zip(charges,eon,dim,ops,lp):
    if (c[0] == 8 or c[0] == 27) and (c[2] < 0):
       continue
-   if not([c[0],c[1],Fraction(c[2],6)] in old_repdict.values()) and d < 8:
+   rep = [Fraction(c[0],1), Fraction(c[1],1), Fraction(c[2],6)]
+   if not(rep in old_repdict.values()) and d < 8:
       new_i += 1
       new_repdict[new_i] = [c[0],c[1],Fraction(c[2],6)]
    if d != d0:
