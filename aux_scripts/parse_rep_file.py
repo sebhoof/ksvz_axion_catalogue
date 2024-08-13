@@ -24,12 +24,6 @@ operators = {
    'p': r"\slashed{\partial}" # momentum/derivative
 }
 
-old_repdict = dict({ 1: [Fraction(3),Fraction(1),Fraction(-1,3)], 2: [Fraction(3),Fraction(1),Fraction(2,3)], 3: [Fraction(3),Fraction(2),Fraction(1,6)], 4: [Fraction(3), Fraction(2), Fraction(-5,6)], 5: [Fraction(3), Fraction(2), Fraction(7,6)],
-                 6: [Fraction(3), Fraction(3), Fraction(-1,3)], 7: [Fraction(3), Fraction(3), Fraction(2,3)], 8: [Fraction(3), Fraction(3), Fraction(-4,3)], 9:[Fraction(6), Fraction(1), Fraction(-1,3)], 10: [Fraction(6), Fraction(1), Fraction(2,3)],
-                11: [Fraction(6), Fraction(2), Fraction(1,6)], 12: [Fraction(8), Fraction(1), Fraction(-1)], 13: [Fraction(8), Fraction(2), Fraction(-1,2)], 14: [Fraction(15), Fraction(1), Fraction(-1,3)], 15: [Fraction(15), Fraction(1), Fraction(2,3)],
-                16: [Fraction(3), Fraction(3), Fraction(5,3)], 17: [Fraction(3), Fraction(4), Fraction(1,6)], 18: [Fraction(3), Fraction(4), Fraction(-5,6)], 19: [Fraction(3), Fraction(4), Fraction(7,6)], 20: [Fraction(15), Fraction(2), Fraction(1,6)]
-})
-
 # Open and read file to parse
 charges, dim, ops, lp, eon = [], [], [], [], []
 with open('Q_reps_refined.csv', 'r') as file:
@@ -61,18 +55,17 @@ with open('Q_reps_refined.csv', 'r') as file:
 
 # Generate table and update rep dictionary
 # s = "  \\toprule\n  \multicolumn{3}{c}{Rep} & $E/N$ & Min.\ $d$ & Ex.\ operators & \multicolumn{1}{c}{LP [GeV]} \\\\\n  \midrule\n"
-old_nr = len(old_repdict)
-new_i = old_nr
-new_repdict = {}
+
+new_i = 0
+repdict = {}
 d0 = 3
 s = ""
 for c,r,d,i,x in zip(charges,eon,dim,ops,lp):
    if (c[0] == 8 or c[0] == 27) and (c[2] < 0):
       continue
    rep = [Fraction(c[0],1), Fraction(c[1],1), Fraction(c[2],6)]
-   if not(rep in old_repdict.values()) and d < 8:
-      new_i += 1
-      new_repdict[new_i] = [c[0],c[1],Fraction(c[2],6)]
+   new_i += 1
+   repdict[new_i] = [c[0],c[1],Fraction(c[2],6)]
    if d != d0:
       s+= "  \midrule\n"
       d0 = d
@@ -86,5 +79,5 @@ for c,r,d,i,x in zip(charges,eon,dim,ops,lp):
 
 print(s)
 pyperclip.copy(s)
-print("New repdict:")
-print(new_repdict)
+print("Repdict:")
+print(repdict)
