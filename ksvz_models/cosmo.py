@@ -1,5 +1,4 @@
 # cosmo.py
-# Cosmological thermal functions, decay and annhiliation operators
 
 import numpy as np
 import os
@@ -66,7 +65,7 @@ def gamma_scaling(te: float) -> float:
       return 1
 
 @njit
-def gammad(mQ: float, scale: float = mP, d: int = 5) -> float:
+def gammad(mQ: float, scale: float = M_PLANCK, d: int = 5) -> float:
    """
    Compute a decay rate for a dimension d operator from dimensional analysis.
    

@@ -10,8 +10,6 @@ import numpy as np
 from scipy.integrate import odeint
 import collections
 from fractions import Fraction
-#from scipy import stats
-# import seaborn as sns
 
 # Turn off warnings from odeint
 chatter = 0
