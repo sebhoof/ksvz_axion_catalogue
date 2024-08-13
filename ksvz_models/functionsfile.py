@@ -1,7 +1,5 @@
 # -*- coding: utf-8 -*-
 """
-Created on Tue May 18 10:46:09 2021
-
 @author: Vaisakh, Sebastian
 """
 import os
@@ -9,8 +7,6 @@ import sys
 import contextlib
 
 import numpy as np
-import matplotlib.pyplot as plt
-import scipy as sci
 from scipy.integrate import odeint
 import collections
 from fractions import Fraction
