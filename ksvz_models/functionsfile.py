@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 """
+Created on Tue May 18 10:46:09 2021
+
 @author: Vaisakh, Sebastian
 """
 import os
@@ -7,77 +9,90 @@ import sys
 import contextlib
 
 import numpy as np
+import matplotlib.pyplot as plt
+import scipy as sci
 from scipy.integrate import odeint
 import collections
 from fractions import Fraction
+#from scipy import stats
+from itertools import combinations_with_replacement
+import seaborn as sns
 
-# Turn off warnings from odeint
-chatter = 0
-
-def fileno(file_or_fd):
-    fd = getattr(file_or_fd, 'fileno', lambda: file_or_fd)()
-    if not isinstance(fd, int):
-        raise ValueError("Expected a file (`.fileno()`) or a file descriptor")
-    return fd
-
-@contextlib.contextmanager
-def stdout_redirected(to=os.devnull, stdout=None):
-    """
-    https://stackoverflow.com/a/22434262/190597 (J.F. Sebastian)
-    """
-    if stdout is None:
-       stdout = sys.stdout
-
-    stdout_fd = fileno(stdout)
-    # copy stdout_fd before it is overwritten
-    #NOTE: `copied` is inheritable on Windows when duplicating a standard stream
-    with os.fdopen(os.dup(stdout_fd), 'wb') as copied:
-        stdout.flush()  # flush library buffers that dup2 knows nothing about
-        try:
-            os.dup2(fileno(to), stdout_fd)  # $ exec >&to
-        except ValueError:  # filename
-            with open(to, 'wb') as to_file:
-                os.dup2(to_file.fileno(), stdout_fd)  # $ exec > to
-        try:
-            yield stdout # allow code to be run with the redirected stdout
-        finally:
-            # restore stdout to its previous value
-            #NOTE: dup2 makes stdout_fd inheritable unconditionally
-            stdout.flush()
-            os.dup2(copied.fileno(), stdout_fd)  # $ exec >&copied
+# =============================================================================
+# # Turn off warnings from odeint
+# chatter = 0
+# 
+# def fileno(file_or_fd):
+#     fd = getattr(file_or_fd, 'fileno', lambda: file_or_fd)()
+#     if not isinstance(fd, int):
+#         raise ValueError("Expected a file (`.fileno()`) or a file descriptor")
+#     return fd
+# 
+# @contextlib.contextmanager
+# def stdout_redirected(to=os.devnull, stdout=None):
+#     """
+#     https://stackoverflow.com/a/22434262/190597 (J.F. Sebastian)
+#     """
+#     if stdout is None:
+#        stdout = sys.stdout
+# 
+#     stdout_fd = fileno(stdout)
+#     # copy stdout_fd before it is overwritten
+#     #NOTE: `copied` is inheritable on Windows when duplicating a standard stream
+#     with os.fdopen(os.dup(stdout_fd), 'wb') as copied:
+#         stdout.flush()  # flush library buffers that dup2 knows nothing about
+#         try:
+#             os.dup2(fileno(to), stdout_fd)  # $ exec >&to
+#         except ValueError:  # filename
+#             with open(to, 'wb') as to_file:
+#                 os.dup2(to_file.fileno(), stdout_fd)  # $ exec > to
+#         try:
+#             yield stdout # allow code to be run with the redirected stdout
+#         finally:
+#             # restore stdout to its previous value
+#             #NOTE: dup2 makes stdout_fd inheritable unconditionally
+#             stdout.flush()
+#             os.dup2(copied.fileno(), stdout_fd)  # $ exec >&copied
+# =============================================================================
 
 
 repdict = dict({ 1: [Fraction(3),Fraction(1),Fraction(-1,3)], 2: [Fraction(3),Fraction(1),Fraction(2,3)], 3: [Fraction(3),Fraction(2),Fraction(1,6)], 4: [Fraction(3), Fraction(2), Fraction(-5,6)], 5: [Fraction(3), Fraction(2), Fraction(7,6)],
                  6: [Fraction(3), Fraction(3), Fraction(-1,3)], 7: [Fraction(3), Fraction(3), Fraction(2,3)], 8: [Fraction(3), Fraction(3), Fraction(-4,3)], 9:[Fraction(6), Fraction(1), Fraction(-1,3)], 10: [Fraction(6), Fraction(1), Fraction(2,3)],
                 11: [Fraction(6), Fraction(2), Fraction(1,6)], 12: [Fraction(8), Fraction(1), Fraction(-1)], 13: [Fraction(8), Fraction(2), Fraction(-1,2)], 14: [Fraction(15), Fraction(1), Fraction(-1,3)], 15: [Fraction(15), Fraction(1), Fraction(2,3)],
-                16: [Fraction(3), Fraction(3), Fraction(5,3)], 17: [Fraction(3), Fraction(4), Fraction(1,6)], 18: [Fraction(3), Fraction(4), Fraction(-5,6)], 19: [Fraction(3), Fraction(4), Fraction(7,6)], 20: [Fraction(15), Fraction(2), Fraction(1,6)]
-})
+                16: [Fraction(3), Fraction(3), Fraction(5,3)], 17: [Fraction(3), Fraction(4), Fraction(1,6)], 18: [Fraction(3), Fraction(4), Fraction(-5,6)], 19: [Fraction(3), Fraction(4), Fraction(7,6)], 20: [Fraction(15), Fraction(2), Fraction(1,6)], 21: [6, 1, Fraction(-2, 3)], 22: [6, 1, Fraction(1, 3)], 23: [6, 2, Fraction(-1, 6)], 24: [8, 1, Fraction(1, 1)], 25: [8, 2, Fraction(1, 2)], 26: [3, 1, Fraction(-7, 3)], 27: [3, 1, Fraction(-4, 3)], 28: [3, 1, Fraction(5, 3)], 29: [3, 1, Fraction(8, 3)], 30: [3, 2, Fraction(-11, 6)], 31: [3, 2, Fraction(13, 6)], 32: [3, 4, Fraction(-11, 6)], 33: [3, 4, Fraction(13, 6)], 34: [3, 5, Fraction(-4, 3)], 35: [3, 5, Fraction(-1, 3)], 36: [3, 5, Fraction(2, 3)], 37: [3, 5, Fraction(5, 3)], 38: [6, 1, Fraction(-5, 3)], 39: [6, 1, Fraction(4, 3)], 40: [6, 1, Fraction(7, 3)], 41: [6, 2, Fraction(-7, 6)], 42: [6, 2, Fraction(5, 6)], 43: [6, 2, Fraction(11, 6)], 44: [6, 3, Fraction(-2, 3)], 45: [6, 3, Fraction(1, 3)], 46: [6, 3, Fraction(4, 3)], 47: [6, 4, Fraction(-1, 6)], 48: [6, 4, Fraction(5, 6)], 49: [8, 1, Fraction(0, 1)], 50: [8, 1, Fraction(2, 1)], 51: [8, 2, Fraction(3, 2)], 52: [8, 3, Fraction(0, 1)], 53: [8, 3, Fraction(1, 1)], 54: [8, 4, Fraction(1, 2)], 55: [10, 1, Fraction(0, 1)], 56: [10, 1, Fraction(1, 1)], 57: [10, 2, Fraction(-1, 2)], 58: [10, 2, Fraction(1, 2)], 59: [10, 2, Fraction(3, 2)], 60: [10, 3, Fraction(0, 1)], 61: [10, 3, Fraction(1, 1)], 62: [15, 1, Fraction(-4, 3)], 63: [15, 1, Fraction(5, 3)], 64: [15, 2, Fraction(-5, 6)], 65: [15, 2, Fraction(7, 6)], 66: [15, 3, Fraction(-1, 3)], 67: [15, 3, Fraction(2, 3)], 68: [15, 4, Fraction(1, 6)], 69: [3, 2, Fraction(-17, 6)], 70: [3, 2, Fraction(19, 6)], 71: [3, 3, Fraction(-7, 3)], 72: [3, 3, Fraction(8, 3)], 73: [3, 5, Fraction(-7, 3)], 74: [3, 6, Fraction(-11, 6)], 75: [3, 6, Fraction(-5, 6)], 76: [3, 6, Fraction(1, 6)], 77: [3, 6, Fraction(7, 6)], 78: [3, 6, Fraction(13, 6)], 79: [6, 2, Fraction(-13, 6)], 80: [6, 2, Fraction(17, 6)], 81: [6, 3, Fraction(-5, 3)], 82: [6, 3, Fraction(7, 3)], 83: [6, 4, Fraction(-7, 6)], 84: [6, 4, Fraction(11, 6)], 85: [6, 5, Fraction(-2, 3)], 86: [6, 5, Fraction(1, 3)], 87: [6, 5, Fraction(4, 3)], 88: [8, 2, Fraction(5, 2)], 89: [8, 3, Fraction(2, 1)], 90: [8, 4, Fraction(3, 2)], 91: [8, 5, Fraction(0, 1)], 92: [8, 5, Fraction(1, 1)], 93: [10, 1, Fraction(-1, 1)], 94: [10, 1, Fraction(2, 1)], 95: [10, 3, Fraction(-1, 1)], 96: [10, 4, Fraction(-1, 2)], 97: [10, 4, Fraction(1, 2)], 98: [10, 4, Fraction(3, 2)], 99: [15, 2, Fraction(-11, 6)], 100: [15, 3, Fraction(-4, 3)], 101: [15, 4, Fraction(-5, 6)], 102: [15, 4, Fraction(7, 6)], 103: [152, 1, Fraction(-1, 3)], 104: [152, 1, Fraction(2, 3)], 105: [152, 2, Fraction(1, 6)], 106: [24, 1, Fraction(-1, 3)], 107: [24, 1, Fraction(2, 3)], 108: [24, 2, Fraction(1, 6)], 109: [27, 1, Fraction(1, 1)], 110: [27, 2, Fraction(1, 2)], 111: [42, 1, Fraction(-1, 3)], 112: [42, 1, Fraction(2, 3)]})
+
+def plotfns():
+    sns.set(font_scale = 1.1)
+    sns.set_style("white")
+    sns.set_style("ticks")
+    plt.rc('axes', labelsize=22)
+    plt.rc('xtick', labelsize=20)
+    plt.rc('ytick', labelsize=20)
 
 
 def ENcalc(summed, subbed=[]):
-    E = 0
-    N = 0
+    E=0; N=0;
     for rep in summed:
-        E = E + rep[0]*rep[1]*((rep[1]**2 - 1)/12 + rep[2]**2)
-        N = N + rep[1]*dynkind(3,rep[0])
+        E = E + rep[0]*rep[1]*((rep[1]**2 - 1)/12 + rep[2]**2);
+        N = N + rep[1]*dynkind(3,rep[0]);
     if len(subbed)>0:
         for rep in subbed:
-            E = E - rep[0]*rep[1]*((rep[1]**2 - 1)/12 + rep[2]**2)
-            N = N - rep[1]*dynkind(3,rep[0])
+            E = E - rep[0]*rep[1]*((rep[1]**2 - 1)/12 + rep[2]**2);
+            N = N - rep[1]*dynkind(3,rep[0]);
     return E, N
 
 def dynkind(N, r):
-    dyn=[collections.defaultdict(lambda : r**2),{1:0,2:1/2,3:2,4:5},{1:0,3:1/2,6:5/2,8:3,10:15/2,15:10}]
+    dyn=[collections.defaultdict(lambda : r**2),{1:0,2:1/2,3:2,4:5,5:10,6:35/2,7:28,8:42},{1:0,3:1/2,6:5/2,8:3,10:15/2,15:10,152:35/2,21:35,24:25,27:27,28:63,35:105/2,36:105,42:119/2,45:165,48:98,55:495/2,60:115}]
     return Fraction(dyn[N-1][r])
 
 def casimir(N, r):
-    cas=[collections.defaultdict(lambda : r**2),{1:0,2:3/4,3:2,4:15/4},{1:0,3:4/3,6:10/3,8:3,10:6,15:16/3}]
+    cas=[collections.defaultdict(lambda : r**2),{1:0,2:3/4,3:2,4:15/4,5:6,6:35/4,7:12,8:63/4},{1:0,3:4/3,6:10/3,8:3,10:6,15:16/3,152:28/3,21:40/3,24:25/3,27:8,28:126/7,35:12,36:70/3,42:34/3,45:88/3,48:49/3,55:36,60:46/3}]
     return cas[N-1][r]
 
 def casadj(i):
     return 0 if i==1 else i
 
-def do_it(f, m_Q=5e11):
+def do_it(f, m_Q=5e11, plot=False):
     n_g = 3
     a_SM = [4/3*n_g+1/10,-(22/3-4/3*n_g-1/6),-(11-4/3*n_g)]
     b1 = np.array([[0,0,0],[0,136/3,0],[0,0,102]])
@@ -87,7 +102,7 @@ def do_it(f, m_Q=5e11):
     b_SM = b_SM.transpose()
     a, b = extend(f)
     al1, al2, al3, t = solve_n_plot(a,b, a_SM, b_SM, m_Q)
-    LP1, LP2, LP3 = results(al1, al2, al3, t)
+    LP1, LP2, LP3 = results(al1, al2, al3, t, plot, m_Q)
     return LP1, LP2, LP3
 
 def extend(f_bSM):
@@ -124,22 +139,50 @@ def solve_n_plot(a_bSM,b_bSM, a_SM, b_SM, m_Q = 5e11):
         return dydt
     t = np.linspace(0,20,100000)
     y0=np.array([1/0.016923, 1/0.03374, 1/0.1173]) #\alpha^{-1} ar m_Z = 91.188 GeV
-    if chatter==0:
-        with stdout_redirected():
-            test = odeint(solver, y0, t, args=(np.array(a_SM),np.array(b_SM),np.array(a_bSM),np.array(b_bSM)))
-    else:
-        test = odeint(solver, y0, t, args=(np.array(a_SM),np.array(b_SM),np.array(a_bSM),np.array(b_bSM)))
+# =============================================================================
+#     if chatter==0:
+#         with stdout_redirected():
+#             test = odeint(solver, y0, t, args=(np.array(a_SM),np.array(b_SM),np.array(a_bSM),np.array(b_bSM)))
+#     else:
+#         test = odeint(solver, y0, t, args=(np.array(a_SM),np.array(b_SM),np.array(a_bSM),np.array(b_bSM)))
+# =============================================================================
+    test = odeint(solver, y0, t, args=(np.array(a_SM),np.array(b_SM),np.array(a_bSM),np.array(b_bSM)))
     alpha1=1/test[:, 0]
     alpha2=1/test[:, 1]
     alpha3=1/test[:, 2]
     return alpha1, alpha2, alpha3, t
 
-def results(alpha1, alpha2, alpha3, t):
+def results(alpha1, alpha2, alpha3, t, plot, m_Q):
     mZ = 91.188 #GeV
     mu=mZ*np.exp(2*np.pi*t)
     g1=np.sqrt(4*np.pi*alpha1)
     g2=np.sqrt(4*np.pi*alpha2)
     g3=np.sqrt(4*np.pi*alpha3)
+    if plot==True:
+        plt.plot(mu, g1, 'r', label=r'$g_1$', linewidth=3.5);
+        plt.plot(mu, g2, 'g', label=r'$g_2$', linewidth=3.5);
+        plt.plot(mu, g3, 'b', label=r'$g_3$', linewidth=3.5);
+#        plt.vlines(m_Q, 0, 2, linestyles='dashed', linewidth=1, colors='k')
+#        plt.text(10**12,0.2, r'$m_Q$', fontsize=18)
+        plt.xlim(left=10**0)
+        plt.ylim(top=2.5,bottom=0)
+        plt.xlabel(r'$\mu$ (GeV)',fontsize=20)
+        plt.ylabel(r'$g$',fontsize=20)
+        plt.xscale('log')
+        plt.xticks(fontsize=18)
+        plt.yticks(fontsize=18)
+        plt.gca().yaxis.set_ticks_position('both')
+        plt.xlim(right=7.67e+38)
+        plt.legend(handlelength=2.24, frameon=False, prop={"size":16}, ncol=3, fontsize=20, loc=2)
+#        plt.show()
+        plt.tight_layout(pad=0.5)
+        plt.savefig("running_SMpre.pdf", backend='pgf')
     # threshold=1000                       #arbitrary high threshold for coupling above which LP
     # return np.floor(np.log10(mu[np.where(1/g1==0)[0][0]])).astype(int), np.floor(np.log10(mu[np.where(1/g2==0)[0][0]])).astype(int), np.floor(np.log10(mu[np.where(1/g3==0)[0][0]])).astype(int)
     return np.array([mu[np.where(1/g==0)[0][0]] for g in [g1,g2,g3]])
+
+def plot_running(al1,al2,al3,t):
+    plt.plot(t,al1)
+    plt.plot(t,al2)
+    plt.plot(t,al3)
+    plt.yscale('log')
