@@ -15,7 +15,7 @@ threshold = 10**18
 
 for mass in masses:
     start = time.time()
-    for q in range(15,51):
+    for q in tqdm(range(2,51)):
         e_num, e_den, n_num, n_den, new_mod = [],[],[],[],[]
         try:
             with h5.File('output/data/mass{}/addNQ{}.h5'.format(int(mass/10**7),q), 'r') as f:
@@ -47,8 +47,8 @@ for mass in masses:
                 else:
                     repsum = [repdict[k] for k in j[1]]
                     repsub = [repdict[k] for k in j[0]]
-                e_num.append((Fraction(ENcalc(temp)[0]).limit_denominator()).numerator)
-                e_den.append((Fraction(ENcalc(temp)[0]).limit_denominator()).denominator)
+                e_num.append((Fraction(ENcalc(repsum,repsub)[0]).limit_denominator()).numerator)
+                e_den.append((Fraction(ENcalc(repsum,repsub)[0]).limit_denominator()).denominator)
                 n_num.append((ENcalc(repsum,repsub)[1]).numerator)
                 n_den.append((ENcalc(repsum,repsub)[1]).denominator)
                 new_mod.append(np.concatenate((np.array(j[0]), -np.array(j[1]))))
