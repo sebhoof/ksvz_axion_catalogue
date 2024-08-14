@@ -45,6 +45,7 @@ def encalc_times_36(reps: list[int], repinfo: np.ndarray = repinfo) -> tuple[int
         n += sgn*r2*d3 # Recall that Dynkin labels are multiplied by 36
     return e, n
 
+@njit
 def running_Q_contrib(model: list[int], repinfo: np.ndarray = repinfo) -> tuple[np.ndarray[float], ...]:
     a_bSM = np.zeros(3)
     b_bSM = np.zeros((3,3))
@@ -71,15 +72,17 @@ def running_Q_contrib(model: list[int], repinfo: np.ndarray = repinfo) -> tuple[
     b_bSM *= kappa
     return a_bSM, b_bSM
 
+@njit
 def running(t, y, a_SM, b_SM, a_bSM, b_bSM, mQ):
     tQ = np.log(mQ/MASS_Z)/(2*np.pi)
     a = a_SM + (t > tQ)*a_bSM
     b = b_SM + (t > tQ)*b_bSM
-    dydt = -a - np.matmul(b,1/y)/(4*np.pi)
+    dydt = -a - b.dot(1/y)/(4*np.pi)
     return dydt
 
-def hit_LP(_, y, *args):
-   return min(y)
+def hit_LP(unused1: float, y: np.ndarray[float], *unused2: tuple[any, ...]) -> float:
+    del unused1, unused2
+    return min(y)
 hit_LP.terminal = True
 
 n_g = 3
@@ -97,7 +100,7 @@ def find_LP(model: list[int], mQ: float = 5e11, plot: bool = False) -> float:
     try:
         tLP = sol.t_events[0][0]
     except IndexError:
-        print(f"No Landau pole found before t1 < {t1:f}.")
+        print(f"WARNING. No Landau pole found before t1 < {t1:f}.")
         tLP = t1
     indLP = np.argmin(sol.y[-1])
     muLP = MASS_Z*np.exp(2*np.pi*tLP)
