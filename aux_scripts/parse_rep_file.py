@@ -8,12 +8,12 @@ from fractions import Fraction
 dynkin_dict_2_times_36 = {1: 0, 2: 18, 3: 72, 4: 180, 5: 360, 6: 630, 7: 1008, 8: 1512}
 dynkin_dict_3_times_36 = {1: 0, 3: 18, 6: 90, 8: 108, 10: 270, 15: 360, 152: 630, 21: 1260, 24: 900, 27: 972, 28: 2268, 35: 1890, 36: 3780, 42: 2142, 45: 5940, 48: 3528, 55: 8910, 60: 4140}
 def dynkin_times_36(rep: list[int]) -> list[int]:
-    return [dynkin_dict_3_times_36[rep[0]], dynkin_dict_2_times_36[rep[1]], rep[0]*rep[0]]
+   return [dynkin_dict_3_times_36[rep[0]], dynkin_dict_2_times_36[rep[1]], rep[2]*rep[2]]
 
 casimir_dict_2_times_36 = {1: 0, 2: 27, 3: 72, 4: 135, 5: 216, 6: 315, 7: 432, 8: 567}
 casimir_dict_3_times_36 = {1: 0, 3: 48, 6: 120, 8: 108, 10: 216, 15: 192, 152: 336, 21: 480, 24: 300, 27: 288, 28: 648, 35: 432, 36: 840, 42: 408, 45: 1056, 48: 588, 55: 1296, 60: 552}
 def casimir_times_36(rep: list[int]) -> list[int]:
-    return [casimir_dict_3_times_36[rep[0]], casimir_dict_2_times_36[rep[1]], rep[0]*rep[0]]
+   return [casimir_dict_3_times_36[rep[0]], casimir_dict_2_times_36[rep[1]], rep[2]*rep[2]]
 
 # Dictionary of operators
 operators = {
