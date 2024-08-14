@@ -42,6 +42,9 @@ repinfo = repinfo[repinfo[:,3].argsort()]
 
 def print_replist():
     print(repinfo)
+    
+def get_max_index(d: int = 6) -> int:
+    return np.where(repinfo[:,3] == d)[0][-1]
 
 @njit('int64[:](int64,int64[:,:])')
 def dynkins(rep_index: int, repinfo: np.ndarray = repinfo) -> np.ndarray[int]:
@@ -77,18 +80,20 @@ def running_Q_contrib(model: list[int], repinfo: np.ndarray = repinfo) -> tuple[
         c3, c2, c1 = casimirs(ind, repinfo)/84.0
         r0 *= np.sqrt(0.6)
         r0 /= 6.0
-        a_bSM[0] += 4*kappa*d1*r1*r2/3.0
-        a_bSM[1] += 4*kappa*d2*r2/3.0
-        a_bSM[2] += 4*kappa*d3*r1/3.0
-        b_bSM[0][0] += 4*kappa*d1*c1*r1*r2/3.0
-        b_bSM[1][1] += kappa*d2*(4*c2 + 40/3.0)*r2
-        b_bSM[2][2] += kappa*d3*(4*c3 + 20)*r1
-        b_bSM[0][1] += 4*kappa*c2*d1*r1*r2
-        b_bSM[1][0] += 4*kappa*c1*d2*r2
-        b_bSM[0][2] += 4*kappa*c3*d1*r1*r2
-        b_bSM[2][0] += 4*kappa*c1*d3*r1
-        b_bSM[1][2] += 4*kappa*c3*d2*r2
-        b_bSM[2][1] += 4*kappa*c2*d3*r1
+        a_bSM[0] += d1*r1*r2
+        a_bSM[1] += d2*r2
+        a_bSM[2] += d3*r1
+        b_bSM[0][0] += 4*d1*c1*r1*r2/3.0
+        b_bSM[1][1] += d2*(4*c2 + 40/3.0)*r2
+        b_bSM[2][2] += d3*(4*c3 + 20)*r1
+        b_bSM[0][1] += 4*c2*d1*r1*r2
+        b_bSM[1][0] += 4*c1*d2*r2
+        b_bSM[0][2] += 4*c3*d1*r1*r2
+        b_bSM[2][0] += 4*c1*d3*r1
+        b_bSM[1][2] += 4*c3*d2*r2
+        b_bSM[2][1] += 4*c2*d3*r1
+    a_bSM *= 4*kappa/3.0
+    b_bSM *= kappa
     return a_bSM, b_bSM
 
 def running(t, y, a_SM, b_SM, a_bSM, b_bSM, mQ):
