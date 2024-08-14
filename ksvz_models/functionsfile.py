@@ -6,7 +6,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from numba import njit
-# from numba.typed import List
 from scipy.integrate import solve_ivp
 
 from .constants import *
@@ -92,11 +91,11 @@ b2 = n_g*np.array([[19/15.0, 0.2, 11/30.0], [0.6, 49/3.0, 1.5], [44/15.0, 4, 76/
 b3 = np.array([[9/50.0, 0.3, 0], [0.9, 13/6.0, 0], [0, 0, 0]])
 b_SM = (-b1+b2+b3).T
 
-def find_LP(model: list[int], mQ: float = 5e11, plot: bool = False) -> float:
+def find_LP(model: list[int], mQ: float = 5e11, plot: bool = False) -> tuple[float, float]:
     a_bSM, b_bSM = running_Q_contrib(model)
     t0, t1 = 0, 20
     y0 = np.array([1/0.016923, 1/0.03374, 1/0.1173]) # \alpha^{-1} ar m_Z = 91.188 GeV
-    sol = solve_ivp(running, (t0, t1), y0, args=(a_SM, b_SM, a_bSM, b_bSM, mQ), events=hit_LP)
+    sol = solve_ivp(running, (t0, t1), y0, args=(a_SM, b_SM, a_bSM, b_bSM, mQ), events=hit_LP, method='RK45', rtol=1e-8, atol=1e-7)
     try:
         tLP = sol.t_events[0][0]
     except IndexError:
