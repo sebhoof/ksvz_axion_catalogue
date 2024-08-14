@@ -116,8 +116,9 @@ def find_LP(model: list[int], mQ: float = 5e11, plot: bool = False) -> float:
     sol = solve_ivp(running, (t0, t1), y0, args=(a_SM, b_SM, a_bSM, b_bSM, mQ), events=hit_LP)
     try:
         tLP = sol.t_events[0][0]
-    except:
+    except IndexError:
         tLP = t1
+    indLP = np.argmin(1/sol.y)
     muLP = MASS_Z*np.exp(2*np.pi*tLP)
     if plot:
         mu = MASS_Z*np.exp(2*np.pi*sol.t)
@@ -130,4 +131,4 @@ def find_LP(model: list[int], mQ: float = 5e11, plot: bool = False) -> float:
         plt.ylabel(r'$g$')
         plt.legend()
         plt.savefig("running_SMpre.pdf")
-    return muLP
+    return muLP, indLP
