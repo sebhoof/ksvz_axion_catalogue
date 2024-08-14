@@ -24,3 +24,7 @@ def fast_factorial(n: int) -> int:
    if n > len(factorial_table):
       raise ValueError(f"Factorial of {n} is too large for the factorial table.")
    return factorial_table[n]
+
+@njit
+def sign(x):
+   return (x > 0) - (x < 0)

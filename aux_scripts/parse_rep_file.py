@@ -58,6 +58,7 @@ with open('Q_reps_refined.csv', 'r') as file:
 
 new_i = 0
 repdict = {}
+replist = []
 d0 = 3
 s = ""
 for c,r,d,i,x in zip(charges,eon,dim,ops,lp):
@@ -66,6 +67,7 @@ for c,r,d,i,x in zip(charges,eon,dim,ops,lp):
    rep = [Fraction(c[0],1), Fraction(c[1],1), Fraction(c[2],6)]
    new_i += 1
    repdict[new_i] = [c[0],c[1],Fraction(c[2],6)]
+   replist.append([c[0],c[1],c[2]])
    if d != d0:
       s+= "  \midrule\n"
       d0 = d
@@ -81,3 +83,5 @@ print(s)
 pyperclip.copy(s)
 print("Repdict:")
 print(repdict)
+print("Replist:")
+print(replist)
