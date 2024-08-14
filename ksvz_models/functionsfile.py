@@ -41,8 +41,8 @@ def encalc_times_36(reps: list[int], repinfo: np.ndarray = repinfo) -> tuple[int
     for rep in reps:
         r3, r2, r1, ind, sgn = charges_from_rep(rep, repinfo)
         d3, _, _ = dynkins(ind, repinfo)
-        e += sgn*r3*r2*(3*(r2*r2 - 1) + r1*r1) # Recall that r1 = 6 * the usual r1
-        n += 18*sgn*r2*d3 # Recall that Dynkin labels are multiplied by 2
+        e += sgn*r3*r2*(3*(r2*r2 - 1) + r1*r1) # Recall that r1 is multiplied by 6
+        n += sgn*r2*d3 # Recall that Dynkin labels are multiplied by 36
     return e, n
 
 def running_Q_contrib(model: list[int], repinfo: np.ndarray = repinfo) -> tuple[np.ndarray[float], ...]:
@@ -51,8 +51,8 @@ def running_Q_contrib(model: list[int], repinfo: np.ndarray = repinfo) -> tuple[
     kappa = 1
     for rep in model:
         r3, r2, _, ind, _ = charges_from_rep(rep, repinfo)
-        d3, d2, d1 = dynkins(ind, repinfo)/2.0
-        c3, c2, c1 = casimirs(ind, repinfo)/12.0
+        d3, d2, d1 = dynkins(ind, repinfo)/36.0
+        c3, c2, c1 = casimirs(ind, repinfo)/36.0
         d1 *= 0.6
         c1 *= 0.6
         a_bSM[0] += d1*r2*r3
@@ -86,7 +86,7 @@ n_g = 3
 a_SM = np.array([4*n_g/3.0 + 0.1, -22/3.0 + 4*n_g/3.0 + 1/6.0, -11 + 4*n_g/3.0])
 b1 = np.array([[0, 0, 0], [0, 136/3.0, 0], [0, 0, 102]])
 b2 = n_g*np.array([[19/15.0, 0.2, 11/30.0], [0.6, 49/3.0, 1.5], [44/15.0, 4, 76/3.0]])
-b3 = np.array([[9/50.0, 0.3, 0], [0.9, 13/6.0, 0], 2[0, 0, 0]])
+b3 = np.array([[9/50.0, 0.3, 0], [0.9, 13/6.0, 0], [0, 0, 0]])
 b_SM = (-b1+b2+b3).T
 
 def find_LP(model: list[int], mQ: float = 5e11, plot: bool = False) -> float:
@@ -108,6 +108,7 @@ def find_LP(model: list[int], mQ: float = 5e11, plot: bool = False) -> float:
             plt.plot(mu, g[i], label=f"$g_{(i+1):d}$")
         plt.gca().axvline(MASS_Z*np.exp(2*np.pi*tLP), c='k', ls='--')
         plt.xscale('log')
+        plt.yscale('log')
         plt.xlabel(r'$\mu$ [GeV]')
         plt.ylabel(r'$g$')
         plt.legend()

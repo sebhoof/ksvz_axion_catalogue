@@ -5,15 +5,15 @@ import pyperclip
 
 from fractions import Fraction
 
-dynkin_dict_2_times_2 = {1: 0, 2: 1, 3: 4, 4: 10, 5: 20, 6: 35, 7: 56, 8: 84}
-dynkin_dict_3_times_2 = {1: 0, 3: 1, 6: 5, 8: 6, 10: 15, 15: 20, 152: 35, 21: 70, 24: 50, 27: 54, 28: 126, 35: 105, 36: 210, 42: 119, 45: 330, 48: 196, 55: 495, 60: 230}
-def dynkin_times_2(rep: list[int]) -> list[int]:
-    return [dynkin_dict_3_times_2[rep[0]], dynkin_dict_2_times_2[rep[1]], 2*rep[0]*rep[0]]
+dynkin_dict_2_times_36 = {1: 0, 2: 18, 3: 72, 4: 180, 5: 360, 6: 630, 7: 1008, 8: 1512}
+dynkin_dict_3_times_36 = {1: 0, 3: 18, 6: 90, 8: 108, 10: 270, 15: 360, 152: 630, 21: 1260, 24: 900, 27: 972, 28: 2268, 35: 1890, 36: 3780, 42: 2142, 45: 5940, 48: 3528, 55: 8910, 60: 4140}
+def dynkin_times_36(rep: list[int]) -> list[int]:
+    return [dynkin_dict_3_times_36[rep[0]], dynkin_dict_2_times_36[rep[1]], rep[0]*rep[0]]
 
-casimir_dict_2_times_12 = {1: 0, 2: 9, 3: 24, 4: 45, 5: 72, 6: 105, 7: 144, 8: 189}
-casimir_dict_3_times_12 = {1: 0, 3: 16, 6: 40, 8: 36, 10: 72, 15: 64, 152: 112, 21: 160, 24: 100, 27: 96, 28: 216, 35: 144, 36: 280, 42: 136, 45: 352, 48: 196, 55: 432, 60: 184}
-def casimir_times_12(rep: list[int]) -> list[int]:
-    return [casimir_dict_3_times_12[rep[0]], casimir_dict_2_times_12[rep[1]], 12*rep[0]*rep[0]]
+casimir_dict_2_times_36 = {1: 0, 2: 27, 3: 72, 4: 135, 5: 216, 6: 315, 7: 432, 8: 567}
+casimir_dict_3_times_36 = {1: 0, 3: 48, 6: 120, 8: 108, 10: 216, 15: 192, 152: 336, 21: 480, 24: 300, 27: 288, 28: 648, 35: 432, 36: 840, 42: 408, 45: 1056, 48: 588, 55: 1296, 60: 552}
+def casimir_times_36(rep: list[int]) -> list[int]:
+    return [casimir_dict_3_times_36[rep[0]], casimir_dict_2_times_36[rep[1]], rep[0]*rep[0]]
 
 # Dictionary of operators
 operators = {
@@ -68,15 +68,15 @@ with open('Q_reps_refined.csv', 'r') as file:
       if (rep[0] == 8 or rep[0] == 27) and (rep[2] < 0):
          continue
       info = rep + [d]
-      info += dynkin_times_2(rep)
-      info += casimir_times_12(rep)
+      info += dynkin_times_36(rep)
+      info += casimir_times_36(rep)
       repinfo.append(info)
       
 # Sort repinfo by dimension
 repinfo = np.array(repinfo, dtype='int64')
 repinfo = repinfo[repinfo[:,3].argsort()]
 file_path = os.path.dirname(os.path.realpath(__file__))
-header = "Data file for KSVZ reprensentations\nColumns: q_3 | q_2 | 6 * q_1 | min dim | 2 * Dyn_3 | 2 * Dyn_2 | 2 * Dyn_1 | 12 * Cas_3 | 12 * Cas_2 | 12 * Cas_1"
+header = "Data file for KSVZ reprensentations\nColumns: q_3 | q_2 | 6 * q_1 | min dim | 36 * Dyn_3 | 36 * Dyn_2 | 36 * Dyn_1 | 36 * Cas_3 | 36 * Cas_2 | 36 * Cas_1"
 np.savetxt(file_path+"/../ksvz_models/data/rep_info.dat", repinfo, fmt='%d', header=header, comments='#')
 
 # Generate table and update rep dictionary
