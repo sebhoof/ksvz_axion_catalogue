@@ -1,44 +1,45 @@
-import numpy as np
-from itertools import combinations_with_replacement
+# additive_cats.py
+
 import h5py as h5
+import numpy as np
 import time
-import warnings
-from tqdm import tqdm
-from functionsfile import *
+# import warnings
 
-threshold = 10**18
-#masses = 10**7*np.array([1, 5, 10, 50, 100, 500, 1000, 5000, 10000, 50000, 100000]).astype(float)
-#masses = 10**7*np.array([1000000]).astype(float)
-masses = [5*10**11];
+from itertools import combinations_with_replacement
+from fractions import Fraction
+from numba import njit
+from tqdm import trange
 
-warnings.filterwarnings("ignore", category=RuntimeWarning)
+from .functionsfile import encalc_times_36, find_LP, repinfo
 
-reps = np.linspace(1,112,112).astype(int)
+# warnings.filterwarnings("ignore", category=RuntimeWarning)
 
-for m in masses:
-    start=time.time()
-    for q in tqdm(range(1,3)):
-        e_num, e_den, n_num, n_den, LP, mod = [],[],[],[],[],[]
-        models = list(combinations_with_replacement(reps,q))
-        print("Created combinations for NQ =",q)
-        for i in tqdm(models):
-            temp=[]
-            for j in list(i):
-                temp.append(repdict[j])
-            e_num.append((Fraction(ENcalc(temp)[0]).limit_denominator()).numerator)
-            e_den.append((Fraction(ENcalc(temp)[0]).limit_denominator()).denominator)
-            n_num.append((ENcalc(temp)[1]).numerator)
-            n_den.append((ENcalc(temp)[1]).denominator)
-            f=[np.array(temp)[:,2], np.array(temp)[:,1], np.array(temp)[:,0]]
-            l1,l2,l3=do_it(f, m)
-            LP.append(l1)
-            mod.append(list(i))
-        with h5.File('output/data/mass{}/addNQ{}.h5'.format(int(m/10**7),q), 'w') as f:
-            f.create_dataset("E_numerator", data=e_num, dtype='i4')
-            f.create_dataset("E_denominator", data=e_den, dtype='i4')
-            f.create_dataset("N_numerator", data=n_num, dtype='i4')
-            f.create_dataset("N_denominator", data=n_den, dtype='i4')
-            f.create_dataset("LP", data=LP, dtype='f8')
-            f.create_dataset("model", data=mod)
-        print("NQ =",q," done.")
-    print('Mass {} done in {} minutes'.format(m, (time.time()-start)/60))
+def create_initial_catalogue(models: list[list[int]]) -> list[list[int]]:
+    eonvals = []
+    for reps in models:
+        e, n = encalc_times_36(reps, repinfo)
+        eonvals.append([e, n])
+    return eonvals
+
+def save_initial_catalogue(masses: list[float], reps: list[int]):
+    for q in trange(1,3):
+        t0 = time.time()
+        models = list(combinations_with_replacement(reps, q))
+        print(f"Created combinations for N_Q = {q:d}")
+        eonvals = create_initial_catalogue(models)
+        eonvals = [(Fraction(i[0], 36), Fraction(i[1], 36)) for i in eonvals]
+        eonvals = np.array([[e.numerator, e.denominator, n.numerator, n.denominator] for e,n in eonvals], dtype='int')
+        with h5.File(f"output/data/addNQ{q:d}.h5", 'w') as f:
+            f.create_dataset("E_numerator", data=eonvals[:,0], dtype='i2')
+            f.create_dataset("E_denominator", data=eonvals[:,1], dtype='i2')
+            f.create_dataset("N_numerator", data=eonvals[:,2], dtype='i2')
+            f.create_dataset("N_denominator", data=eonvals[:,3], dtype='i2')
+            f.create_dataset("model", data=models, dtype='i2')
+        for mQ in masses:
+            lps = []
+            for model in models:
+                lp, _ = find_LP(model, mQ, plot=False)
+                lps.append(lp)
+            with h5.File(f"output/data/addNQ{q:d}.h5", 'a') as f:
+                f.create_dataset(f"LP_m{int(mQ/1e7):d}", data=lps, dtype='f8')
+        print(f"All done for NQ = {q:d} after {(time.time()-t0):.2f} mins.")
