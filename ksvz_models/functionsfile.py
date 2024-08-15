@@ -104,7 +104,7 @@ def find_LP(model: list[int], mQ: float = 5e11, verbose: bool = True, plot: bool
     except IndexError:
         if verbose:
             print("INFO. No Landau pole found below {:.2e} GeV.".format(convert(t1)))
-        tLP = t1
+        tLP = np.nan
     indLP = np.argmin(sol.y[:,-1])
     muLP = convert(tLP)
     if plot:

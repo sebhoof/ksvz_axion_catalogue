@@ -34,12 +34,13 @@ def save_initial_catalogue(masses: list[float], reps: list[int]):
                 lp, _ = find_LP(model, mQ, plot=False)
                 lps.append(lp)
             with h5.File(h5name, 'w') as f:
+                f.attrs['LP_threshold'] = np.inf
+                f.attrs['m_Q'] = mQ
                 f.create_dataset("model", data=models, dtype='i2')
                 f.create_dataset("E", data=eonvals[:,0], dtype='i4')
                 f.create_dataset("N", data=eonvals[:,1], dtype='i4')
-                dset = f.create_dataset("LP", data=lps, dtype='f8')
-                dset.attrs['m_Q'] = mQ
-        print("All done for N_Q = {:d} with {:d} mass(es) after {:.2f} mins.".format(q, len(masses), (time.time()-t0)/60), flush=True)
+                f.create_dataset("LP", data=lps, dtype='f8')
+        print("Computed {:d} models for N_Q = {:d} with {:d} mass(es) after {:.2f} mins.".format(len(models), q, len(masses), (time.time()-t0)/60), flush=True)
 
 def create_extended_catalogue(nq_max: int, lp_threshold: float = 1.0e18):
     if nq_max < 3:
@@ -55,9 +56,12 @@ def create_extended_catalogue(nq_max: int, lp_threshold: float = 1.0e18):
             h5name_old = f"output/data/addNQ{(q-1):d}_m{i:d}.h5"
             h5name_new = f"output/data/addNQ{q:d}_m{i:d}.h5"
             with h5.File(h5name_old, 'r') as f:
+                mQ = f.attrs['m_Q']
+                lp_threshold_old = f.attrs['LP_threshold']
+                if lp_threshold_old < lp_threshold:
+                    raise ValueError(f"LP threshold for {h5name_old} is lower (more restrictive) than the new threshold.")
                 models = f["model"][:]
                 lps = f["LP"][:]
-                mQ = f["LP"].attrs['m_Q']
                 cond = (lps >= lp_threshold)
                 models_to_extend = models[cond]
             if len(models_to_extend) > 0:
@@ -72,11 +76,12 @@ def create_extended_catalogue(nq_max: int, lp_threshold: float = 1.0e18):
                     lp, _ = find_LP(model, mQ, plot=False, verbose=False)
                     lps.append(lp)
                 with h5.File(h5name_new, 'w') as f:
+                    f.attrs['LP_threshold'] = lp_threshold
+                    f.attrs['m_Q'] = mQ
                     f.create_dataset("model", data=new_models, dtype='i2')
                     f.create_dataset("E", data=eonvals[:,0], dtype='i4')
                     f.create_dataset("N", data=eonvals[:,1], dtype='i4')
-                    dset = f.create_dataset("LP", data=lps, dtype='f8')
-                    dset.attrs['m_Q'] = mQ
-        print("All done for N_Q = {:d}  with {:d} mass(es) after {:.2f} mins.".format(q, n_masses, (time.time()-t1)/60), flush=True)
+                    f.create_dataset("LP", data=lps, dtype='f8')
+        print("Computed {:d} models for N_Q = {:d} with {:d} mass(es) after {:.2f} mins.".format(len(new_models), q, n_masses, (time.time()-t1)/60), flush=True)
     print("All tasks completed after {:.2f} mins.".format((time.time()-t0)/60), flush=True)
         
