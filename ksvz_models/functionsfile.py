@@ -5,7 +5,7 @@ import os
 import matplotlib.pyplot as plt
 import numpy as np
 
-from numba import njit
+from numba import njit #, vectorize
 from scipy.integrate import solve_ivp
 
 from .constants import *
@@ -17,25 +17,26 @@ repinfo = np.genfromtxt(file_path+"/data/rep_info.dat", dtype='int64')
 def print_replist():
     print(repinfo)
     
+@njit("int64(int64)")
 def get_max_index(d: int = 6) -> int:
     return np.where(repinfo[:,3] == d)[0][-1]
 
-@njit('int64[:](int64,int64[:,:])')
+@njit("int64[:](int64,int64[:,:])")
 def dynkins(rep_index: int, repinfo: np.ndarray = repinfo) -> np.ndarray[int]:
     return repinfo[rep_index][4:7]
 
-@njit('int64[:](int64,int64[:,:])')
+@njit("int64[:](int64,int64[:,:])")
 def casimirs(rep_index: int, repinfo: np.ndarray = repinfo) -> np.ndarray[int]:
     return repinfo[rep_index][7:10]
 
-@njit('UniTuple(int64, 5)(int64,int64[:,:])')
-def charges_from_rep(rep: int, replist) -> tuple[int, ...]:
-    ind, sgn = abs(rep-1), sign(rep)
-    r3, r2, r1 = replist[ind][:3]
+@njit("UniTuple(int64, 5)(int64,int64[:,:])")
+def charges_from_rep(rep: int, repinfo: np.ndarray = repinfo) -> tuple[int, ...]:
+    ind, sgn = abs(rep) - 1, sign(rep)
+    r3, r2, r1 = repinfo[ind][:3]
     return r3, r2, r1, ind, sgn
 
-@njit
-def encalc_times_36(reps: list[int], repinfo: np.ndarray = repinfo) -> tuple[int, int]:
+@njit('UniTuple(int64, 2)(int64[:],int64[:,:])')
+def encalc_times_36(reps: np.ndarray[int], repinfo: np.ndarray = repinfo) -> tuple[int, int]:
     e, n = 0, 0
     for rep in reps:
         r3, r2, r1, ind, sgn = charges_from_rep(rep, repinfo)
@@ -44,8 +45,8 @@ def encalc_times_36(reps: list[int], repinfo: np.ndarray = repinfo) -> tuple[int
         n += sgn*r2*d3 # Recall that Dynkin labels are multiplied by 36
     return e, n
 
-@njit
-def running_Q_contrib(model: list[int], repinfo: np.ndarray = repinfo) -> tuple[np.ndarray[float], ...]:
+@njit('(int64[:],int64[:,:])')
+def running_Q_contrib(model: np.ndarray[int], repinfo: np.ndarray = repinfo) -> tuple[np.ndarray[float], ...]:
     a_bSM = np.zeros(3)
     b_bSM = np.zeros((3,3))
     kappa = 1
@@ -91,20 +92,23 @@ b2 = n_g*np.array([[19/15.0, 0.2, 11/30.0], [0.6, 49/3.0, 1.5], [44/15.0, 4, 76/
 b3 = np.array([[9/50.0, 0.3, 0], [0.9, 13/6.0, 0], [0, 0, 0]])
 b_SM = (-b1+b2+b3).T
 
-def find_LP(model: list[int], mQ: float = 5e11, plot: bool = False) -> tuple[float, float]:
-    a_bSM, b_bSM = running_Q_contrib(model)
+def find_LP(model: list[int], mQ: float = 5e11, verbose: bool = True, plot: bool = False) -> tuple[float, float]:
+    convert = lambda t: MASS_Z*np.exp(2*np.pi*t)
+    model_arr = np.array(model, dtype='int')
+    a_bSM, b_bSM = running_Q_contrib(model_arr, repinfo)
     t0, t1 = 0, 20
     y0 = np.array([1/0.016923, 1/0.03374, 1/0.1173]) # \alpha^{-1} ar m_Z = 91.188 GeV
     sol = solve_ivp(running, (t0, t1), y0, args=(a_SM, b_SM, a_bSM, b_bSM, mQ), events=hit_LP, method='RK45', rtol=1e-8, atol=1e-7)
     try:
         tLP = sol.t_events[0][0]
     except IndexError:
-        print(f"WARNING. No Landau pole found before t1 < {t1:f}.")
+        if verbose:
+            print("INFO. No Landau pole found below {:.2e} GeV.".format(convert(t1)))
         tLP = t1
     indLP = np.argmin(sol.y[-1])
-    muLP = MASS_Z*np.exp(2*np.pi*tLP)
+    muLP = convert(tLP)
     if plot:
-        mu = MASS_Z*np.exp(2*np.pi*sol.t)
+        mu = convert(sol.t)
         g = np.sqrt(4*np.pi/sol.y)
         for i in range(3):
             plt.plot(mu, g[i], label=f"$g_{(i+1):d}$")

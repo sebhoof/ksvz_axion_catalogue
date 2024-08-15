@@ -1,20 +1,20 @@
-# additive_cats.py
+# create_cats.py
 
 import h5py as h5
 import numpy as np
+import os.path
 import time
 # import warnings
 
 from itertools import combinations_with_replacement
-from fractions import Fraction
+# from fractions import Fraction
 from numba import njit
-from tqdm import trange
+from tqdm import trange, tqdm
 
 from .functionsfile import encalc_times_36, find_LP, repinfo
 
-# warnings.filterwarnings("ignore", category=RuntimeWarning)
-
-def create_initial_catalogue(models: list[list[int]]) -> list[list[int]]:
+@njit
+def compute_eon_values(models: np.ndarray[int], repinfo: np.ndarray = repinfo) -> list[list[int]]:
     eonvals = []
     for reps in models:
         e, n = encalc_times_36(reps, repinfo)
@@ -22,24 +22,61 @@ def create_initial_catalogue(models: list[list[int]]) -> list[list[int]]:
     return eonvals
 
 def save_initial_catalogue(masses: list[float], reps: list[int]):
-    for q in trange(1,3):
+    for q in [1, 2]:
         t0 = time.time()
-        models = list(combinations_with_replacement(reps, q))
-        print(f"Created combinations for N_Q = {q:d}")
-        eonvals = create_initial_catalogue(models)
-        eonvals = [(Fraction(i[0], 36), Fraction(i[1], 36)) for i in eonvals]
-        eonvals = np.array([[e.numerator, e.denominator, n.numerator, n.denominator] for e,n in eonvals], dtype='int')
-        with h5.File(f"output/data/addNQ{q:d}.h5", 'w') as f:
-            f.create_dataset("E_numerator", data=eonvals[:,0], dtype='i2')
-            f.create_dataset("E_denominator", data=eonvals[:,1], dtype='i2')
-            f.create_dataset("N_numerator", data=eonvals[:,2], dtype='i2')
-            f.create_dataset("N_denominator", data=eonvals[:,3], dtype='i2')
-            f.create_dataset("model", data=models, dtype='i2')
-        for mQ in masses:
+        models = np.array(list(combinations_with_replacement(reps, q)), dtype='int')
+        print(f"Created combinations for N_Q = {q:d}...", flush=True)
+        eonvals = np.array(compute_eon_values(models), dtype='int')
+        for i,mQ in enumerate(masses):
+            h5name = f"output/data/addNQ{q:d}_m{i:d}.h5"
             lps = []
             for model in models:
                 lp, _ = find_LP(model, mQ, plot=False)
                 lps.append(lp)
-            with h5.File(f"output/data/addNQ{q:d}.h5", 'a') as f:
-                f.create_dataset(f"LP_m{int(mQ/1e7):d}", data=lps, dtype='f8')
-        print(f"All done for NQ = {q:d} after {(time.time()-t0):.2f} mins.")
+            with h5.File(h5name, 'w') as f:
+                f.create_dataset("model", data=models, dtype='i2')
+                f.create_dataset("E", data=eonvals[:,0], dtype='i4')
+                f.create_dataset("N", data=eonvals[:,1], dtype='i4')
+                dset = f.create_dataset("LP", data=lps, dtype='f8')
+                dset.attrs['m_Q'] = mQ
+        print("All done for N_Q = {:d} with {:d} mass(es) after {:.2f} mins.".format(q, len(masses), (time.time()-t0)/60), flush=True)
+
+def create_extended_catalogue(nq_max: int, lp_threshold: float = 1.0e18):
+    if nq_max < 3:
+        raise ValueError("N_Q must be at least 3.")
+    if not os.path.isfile("output/data/addNQ2_m0.h5"):
+        raise FileNotFoundError("Initial catalogues not found for N_Q = 2.")
+    t0 = time.time()
+    for q in trange(3, nq_max+1):
+        t1 = time.time()
+        existing_cats = [f for f in os.listdir("output/data/") if f.startswith(f"addNQ{(q-1):d}_m")]
+        n_masses = len(existing_cats)
+        for i in range(n_masses):
+            h5name_old = f"output/data/addNQ{(q-1):d}_m{i:d}.h5"
+            h5name_new = f"output/data/addNQ{q:d}_m{i:d}.h5"
+            with h5.File(h5name_old, 'r') as f:
+                models = f["model"][:]
+                lps = f["LP"][:]
+                mQ = f["LP"].attrs['m_Q']
+                cond = (lps >= lp_threshold)
+                models_to_extend = models[cond]
+            if len(models_to_extend) > 0:
+                new_models = []
+                for mod in models_to_extend:
+                    for i in range(1, mod[0]+1):
+                        new_models.append(np.insert(mod,0,i))
+                new_models = np.array(new_models, dtype='int')
+                eonvals = np.array(compute_eon_values(new_models), dtype='int')
+                lps = []
+                for model in tqdm(new_models):
+                    lp, _ = find_LP(model, mQ, plot=False, verbose=False)
+                    lps.append(lp)
+                with h5.File(h5name_new, 'w') as f:
+                    f.create_dataset("model", data=new_models, dtype='i2')
+                    f.create_dataset("E", data=eonvals[:,0], dtype='i4')
+                    f.create_dataset("N", data=eonvals[:,1], dtype='i4')
+                    dset = f.create_dataset("LP", data=lps, dtype='f8')
+                    dset.attrs['m_Q'] = mQ
+        print("All done for N_Q = {:d}  with {:d} mass(es) after {:.2f} mins.".format(q, n_masses, (time.time()-t1)/60), flush=True)
+    print("All tasks completed after {:.2f} mins.".format((time.time()-t0)/60), flush=True)
+        
