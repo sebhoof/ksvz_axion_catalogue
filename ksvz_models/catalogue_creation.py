@@ -9,10 +9,10 @@ from itertools import combinations_with_replacement
 from numba import njit
 from tqdm import trange
 
-from .functionsfile import encalc_times_36, find_LP, repinfo
+from .model_building import encalc_times_36, find_LP, repinfo
 
-@njit
-def compute_eon_values(models: np.ndarray[int], repinfo: np.ndarray = repinfo) -> list[list[int]]:
+@njit("int64[:,:](int64[:,:],int64[:,:])")
+def compute_eon_values(models: np.ndarray[int], repinfo: np.ndarray = repinfo) -> np.ndarray[int]:
     eonvals = []
     for reps in models:
         e, n = encalc_times_36(reps, repinfo)
@@ -24,7 +24,7 @@ def save_initial_catalogue(masses: list[float], reps: list[int]):
         t0 = time.time()
         models = np.array(list(combinations_with_replacement(reps, q)), dtype='int')
         print(f"Created combinations for N_Q = {q:d}...", flush=True)
-        eonvals = compute_eon_values(models)
+        eonvals = compute_eon_values(models, repinfo)
         for i,mQ in enumerate(masses):
             h5name = f"output/data/addNQ{q:d}_m{i:d}.h5"
             lps = []
@@ -41,17 +41,21 @@ def save_initial_catalogue(masses: list[float], reps: list[int]):
         print("Computed {:d} models for N_Q = {:d} with {:d} mass(es) after {:.2f} mins.".format(len(models), q, len(masses), (time.time()-t0)/60), flush=True)
 
 @njit
-def extend_models(models: np.ndarray[int]):
+def extend_models(models: np.ndarray[int]) -> np.ndarray[int]:
     new_models = [[i]+list(mod) for mod in models for i in range(1, mod[0]+1)]
     return np.array(new_models, dtype='int')
 
-def create_extended_catalogue(nq_max: int, lp_threshold: float = 1.0e18):
+def create_extended_catalogue(nq_max: int, lp_threshold: float = 1.0e18, verbose: bool = True):
     if nq_max < 3:
         raise ValueError("N_Q must be at least 3.")
     if not os.path.isfile("output/data/addNQ2_m0.h5"):
         raise FileNotFoundError("Initial catalogues not found for N_Q = 2.")
     t0 = time.time()
-    for q in trange(3, nq_max+1):
+    if verbose:
+        qrange = trange(3, nq_max+1)
+    else:
+        qrange = range(3, nq_max+1)
+    for q in qrange:
         t1 = time.time()
         existing_cats = [f for f in os.listdir("output/data/") if f.startswith(f"addNQ{(q-1):d}_m")]
         n_masses = len(existing_cats)
@@ -69,10 +73,10 @@ def create_extended_catalogue(nq_max: int, lp_threshold: float = 1.0e18):
                 models_to_extend = models[cond]
             if len(models_to_extend) > 0:
                 new_models = extend_models(models_to_extend)
-                eonvals = compute_eon_values(new_models)
+                eonvals = compute_eon_values(new_models, repinfo)
                 lps = []
                 for model in new_models:
-                    lp, _ = find_LP(model, mQ, plot=False, verbose=False)
+                    lp, _ = find_LP(model, mQ, plot=False, verbose=verbose)
                     lps.append(lp)
                 with h5.File(h5name_new, 'w') as f:
                     f.attrs['LP_threshold'] = lp_threshold

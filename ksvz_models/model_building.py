@@ -1,4 +1,4 @@
-# functionsfile.py
+# model_building.py
 
 import os
 
@@ -104,7 +104,9 @@ def find_LP(model: list[int], mQ: float = 5e11, verbose: bool = True, plot: bool
     except IndexError:
         if verbose:
             print("INFO. No Landau pole found below {:.2e} GeV.".format(convert(t1)))
-        tLP = np.nan
+        # N.B. Setting this to t1 to ensure that the LP criterion is applied correctly.
+        #      However, it should be kept in mind that this is not a true LP.
+        tLP = t1
     indLP = np.argmin(sol.y[:,-1])
     muLP = convert(tLP)
     if plot:

@@ -1,6 +1,6 @@
 import h5py as h5
 import numpy as np
-from functionsfile import *
+from ksvz_models.model_building import *
 import time
 from sympy.utilities.iterables import multiset_partitions
 from tqdm import tqdm
