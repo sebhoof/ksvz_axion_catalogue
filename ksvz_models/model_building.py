@@ -17,25 +17,25 @@ repinfo = np.genfromtxt(file_path+"/data/rep_info.dat", dtype='int64')
 def print_replist():
     print(repinfo)
     
-@njit("int64(int64)")
+@njit
 def get_max_index(d: int = 6) -> int:
     return np.where(repinfo[:,3] == d)[0][-1]
 
-@njit("int64[:](int64,int64[:,:])")
+@njit
 def dynkins(rep_index: int, repinfo: np.ndarray = repinfo) -> np.ndarray[int]:
     return repinfo[rep_index][4:7]
 
-@njit("int64[:](int64,int64[:,:])")
+@njit
 def casimirs(rep_index: int, repinfo: np.ndarray = repinfo) -> np.ndarray[int]:
     return repinfo[rep_index][7:10]
 
-@njit("UniTuple(int64, 5)(int64,int64[:,:])")
+@njit
 def charges_from_rep(rep: int, repinfo: np.ndarray = repinfo) -> tuple[int, ...]:
     ind, sgn = abs(rep) - 1, sign(rep)
     r3, r2, r1 = repinfo[ind][:3]
     return r3, r2, r1, ind, sgn
 
-@njit('UniTuple(int64, 2)(int64[:],int64[:,:])')
+@njit
 def encalc_times_36(reps: np.ndarray[int], repinfo: np.ndarray = repinfo) -> tuple[int, int]:
     e, n = 0, 0
     for rep in reps:
@@ -45,7 +45,7 @@ def encalc_times_36(reps: np.ndarray[int], repinfo: np.ndarray = repinfo) -> tup
         n += sgn*r2*d3 # Recall that Dynkin labels are multiplied by 36
     return e, n
 
-@njit('(int64[:],int64[:,:])')
+@njit
 def running_Q_contrib(model: np.ndarray[int], repinfo: np.ndarray = repinfo) -> tuple[np.ndarray[float], ...]:
     a_bSM = np.zeros(3)
     b_bSM = np.zeros((3,3))
@@ -115,7 +115,7 @@ def find_LP(model: list[int], mQ: float = 5e11, verbose: bool = True, plot: bool
     Notes
     -----
     - The running of the gauge couplings is solved using a 4,5-Runge-Kutta method with adaptive step size control
-    - The highest every scale considered is 7.8e42 GeV; if no LP is found below this scale, the value for the LP is set to this scale
+    - The highest every scale considered is 7.8e42 GeV; if no LP is found below this scale, the value for the LP is set to np.inf
     """
     convert = lambda t: MASS_Z*np.exp(2*np.pi*t)
     model_arr = np.array(model, dtype='int')
@@ -128,8 +128,8 @@ def find_LP(model: list[int], mQ: float = 5e11, verbose: bool = True, plot: bool
         tLP = sol.t_events[0][0]
     except IndexError:
         if verbose:
-            print("INFO. No Landau pole found below {:.2e} GeV.".format(convert(t1)))
-        tLP = t1
+            print("INFO. No Landau pole found below {:.2e} GeV; setting the LP scale to inf.".format(convert(t1)))
+        tLP = np.inf
     indLP = np.argmin(sol.y[:,-1])
     muLP = convert(tLP)
     if plot:
