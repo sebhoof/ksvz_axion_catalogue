@@ -92,7 +92,7 @@ b2 = n_g*np.array([[19/15.0, 0.2, 11/30.0], [0.6, 49/3.0, 1.5], [44/15.0, 4, 76/
 b3 = np.array([[9/50.0, 0.3, 0], [0.9, 13/6.0, 0], [0, 0, 0]])
 b_SM = (-b1+b2+b3).T
 
-def find_LP(model: list[int], mQ: float = 5e11, verbose: bool = True, plot: bool = False) -> tuple[float, int]:
+def find_LP(model: list[int], mQ: float = 5e11, lp_threshold: float = 1e18, verbose: bool = True, plot: bool = False) -> tuple[float, int]:
     """
     Find the (lowest) Landau pole (LP) in the running of the gauge couplings.
     
@@ -102,10 +102,12 @@ def find_LP(model: list[int], mQ: float = 5e11, verbose: bool = True, plot: bool
         List of representations of the heavy quarks
     mQ : float
         Mass of the heavy quarks in GeV
+    lp_threshold : float
+        Threshold for the LP in GeV (default: 1e18 GeV)
     verbose : bool
-        Whether to print additional information or not
+        Whether to print additional information or not (default: True)
     plot : bool
-        Whether to plot the running of the gauge couplings or not
+        Whether to plot the running of the gauge couplings or not (default: False)
     
     Returns
     -------
@@ -120,7 +122,7 @@ def find_LP(model: list[int], mQ: float = 5e11, verbose: bool = True, plot: bool
     convert = lambda t: MASS_Z*np.exp(2*np.pi*t)
     model_arr = np.array(model, dtype='int')
     a_bSM, b_bSM = running_Q_contrib(model_arr, repinfo)
-    t0, t1 = 0, 15
+    t0, t1 = 0, np.log(1e5*lp_threshold/MASS_Z)/(2*np.pi)
     # Initial values for \f$\alpha^{-1}\f$ at the Z boson mass MASS_Z ~ 91.2 GeV
     y0 = np.array([1/0.016923, 1/0.03374, 1/0.1173])
     sol = solve_ivp(running, (t0, t1), y0, args=(a_SM, b_SM, a_bSM, b_bSM, mQ), events=hit_LP, method='RK45', rtol=1e-8, atol=1e-7)
