@@ -109,7 +109,7 @@ def create_extended_catalogue(nq_max: int, lp_threshold: float = 1.0e18, verbose
    print("All tasks completed after {:.2f} mins.".format((time.time()-t0)/60), flush=True)
 
 @njit
-def extend_all_models(set1: list[int], set2: list[int], dat: np.ndarray[int], repinfo: np.ndarray[int] = repinfo) -> list[int]:
+def extend_all_models(set1: list[int], set2: list[int], repinfo: np.ndarray[int] = repinfo) -> list[int]:
    if len(set1) >= len(set2):
       reps = list(set1) + [-r for r in set2]
    else:
@@ -145,13 +145,13 @@ def create_full_catalogue(nq_max: int, lp_threshold: float = 1.0e18, verbose: bo
             models_to_extend = f["model"][cond]
             if verbose:
                print(f"Reading file {h5name_old} with {len(models_to_extend):d} models to extend", flush=True)
-         data = np.column_stack((evals,nvals,models_to_extend))
+         data = np.column_stack((evals, nvals, models_to_extend))
          if len(models_to_extend) > 0:
             n_models -= len(data)
             for mod in models_to_extend:
                # N.B. The multiset_partitions generator expects a list as the first argument
                for set1,set2 in multiset_partitions(list(mod),2):
-                  new_row = extend_all_models(set1, set2, data, repinfo)
+                  new_row = extend_all_models(set1, set2, repinfo)
                   data = np.vstack((data, new_row))
             n_models += len(data)
             with h5.File(h5name_new, 'w') as f:

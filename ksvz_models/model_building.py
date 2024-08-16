@@ -80,8 +80,8 @@ def running(t, y, a_SM, b_SM, a_bSM, b_bSM, mQ):
     dydt = -a - b.dot(1/y)/(4*np.pi)
     return dydt
 
+@njit
 def hit_LP(unused1: float, y: np.ndarray[float], *unused2: tuple[any, ...]) -> float:
-    del unused1, unused2
     return min(y)
 hit_LP.terminal = True
 
@@ -122,7 +122,7 @@ def find_LP(model: list[int], mQ: float = 5e11, lp_threshold: float = 1e18, verb
     convert = lambda t: MASS_Z*np.exp(2*np.pi*t)
     model_arr = np.array(model, dtype='int')
     a_bSM, b_bSM = running_Q_contrib(model_arr, repinfo)
-    t0, t1 = 0, np.log(1e5*lp_threshold/MASS_Z)/(2*np.pi)
+    t0, t1 = 0, np.log(lp_threshold/MASS_Z)/(2*np.pi) + 10
     # Initial values for \f$\alpha^{-1}\f$ at the Z boson mass MASS_Z ~ 91.2 GeV
     y0 = np.array([1/0.016923, 1/0.03374, 1/0.1173])
     sol = solve_ivp(running, (t0, t1), y0, args=(a_SM, b_SM, a_bSM, b_bSM, mQ), events=hit_LP, method='RK45', rtol=1e-8, atol=1e-7)
