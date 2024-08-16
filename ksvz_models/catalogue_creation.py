@@ -42,6 +42,21 @@ def save_initial_catalogue(masses: list[float], reps: list[int]):
 
 @njit
 def extend_models(models: np.ndarray[int]) -> np.ndarray[int]:
+    """
+    Extend the models by one new heavy quark.
+    
+    Parameters
+    ----------
+    models : An (m,n)-array of m models with n heavy quarks to extend
+    
+    Returns
+    -------
+    An (m,n+1)-array of extended models with n+1 heavy quarks
+       
+    Notes
+    -----
+    - To avoid double couting, we only add representations with the lables up the label of the value of the first one
+    """
     new_models = [[i]+list(mod) for mod in models for i in range(1, mod[0]+1)]
     return np.array(new_models, dtype='int')
 
