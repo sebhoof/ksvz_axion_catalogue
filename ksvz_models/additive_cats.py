@@ -1,15 +1,13 @@
-# create_cats.py
+# create_catalogues.py
 
 import h5py as h5
 import numpy as np
 import os.path
 import time
-# import warnings
 
 from itertools import combinations_with_replacement
-# from fractions import Fraction
 from numba import njit
-from tqdm import trange, tqdm
+from tqdm import trange
 
 from .functionsfile import encalc_times_36, find_LP, repinfo
 
@@ -19,14 +17,14 @@ def compute_eon_values(models: np.ndarray[int], repinfo: np.ndarray = repinfo) -
     for reps in models:
         e, n = encalc_times_36(reps, repinfo)
         eonvals.append([e, n])
-    return eonvals
+    return np.array(eonvals, dtype='int')
 
 def save_initial_catalogue(masses: list[float], reps: list[int]):
     for q in [1, 2]:
         t0 = time.time()
         models = np.array(list(combinations_with_replacement(reps, q)), dtype='int')
         print(f"Created combinations for N_Q = {q:d}...", flush=True)
-        eonvals = np.array(compute_eon_values(models), dtype='int')
+        eonvals = compute_eon_values(models)
         for i,mQ in enumerate(masses):
             h5name = f"output/data/addNQ{q:d}_m{i:d}.h5"
             lps = []
@@ -41,6 +39,11 @@ def save_initial_catalogue(masses: list[float], reps: list[int]):
                 f.create_dataset("N", data=eonvals[:,1], dtype='i4')
                 f.create_dataset("LP", data=lps, dtype='f8')
         print("Computed {:d} models for N_Q = {:d} with {:d} mass(es) after {:.2f} mins.".format(len(models), q, len(masses), (time.time()-t0)/60), flush=True)
+
+@njit
+def extend_models(models: np.ndarray[int]):
+    new_models = [[i]+list(mod) for mod in models for i in range(1, mod[0]+1)]
+    return np.array(new_models, dtype='int')
 
 def create_extended_catalogue(nq_max: int, lp_threshold: float = 1.0e18):
     if nq_max < 3:
@@ -65,14 +68,10 @@ def create_extended_catalogue(nq_max: int, lp_threshold: float = 1.0e18):
                 cond = (lps >= lp_threshold)
                 models_to_extend = models[cond]
             if len(models_to_extend) > 0:
-                new_models = []
-                for mod in models_to_extend:
-                    for i in range(1, mod[0]+1):
-                        new_models.append(np.insert(mod,0,i))
-                new_models = np.array(new_models, dtype='int')
-                eonvals = np.array(compute_eon_values(new_models), dtype='int')
+                new_models = extend_models(models_to_extend)
+                eonvals = compute_eon_values(new_models)
                 lps = []
-                for model in tqdm(new_models):
+                for model in new_models:
                     lp, _ = find_LP(model, mQ, plot=False, verbose=False)
                     lps.append(lp)
                 with h5.File(h5name_new, 'w') as f:
