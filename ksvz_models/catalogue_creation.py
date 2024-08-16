@@ -47,11 +47,13 @@ def extend_models(models: np.ndarray[int]) -> np.ndarray[int]:
     
     Parameters
     ----------
-    models : An (m,n)-array of m models with n heavy quarks to extend
+    models : np.ndarray[int]
+        An (m,n)-array of m models with n heavy quarks to extend
     
     Returns
     -------
-    An (m,n+1)-array of extended models with n+1 heavy quarks
+    np.ndarray[int]
+        An (m,n+1)-array of extended models with n+1 heavy quarks
        
     Notes
     -----

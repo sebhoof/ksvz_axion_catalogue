@@ -92,20 +92,43 @@ b2 = n_g*np.array([[19/15.0, 0.2, 11/30.0], [0.6, 49/3.0, 1.5], [44/15.0, 4, 76/
 b3 = np.array([[9/50.0, 0.3, 0], [0.9, 13/6.0, 0], [0, 0, 0]])
 b_SM = (-b1+b2+b3).T
 
-def find_LP(model: list[int], mQ: float = 5e11, verbose: bool = True, plot: bool = False) -> tuple[float, float]:
+def find_LP(model: list[int], mQ: float = 5e11, verbose: bool = True, plot: bool = False) -> tuple[float, int]:
+    """
+    Find the (lowest) Landau pole (LP) in the running of the gauge couplings.
+    
+    Parameters
+    ----------
+    model : list[int]
+        List of representations of the heavy quarks
+    mQ : float
+        Mass of the heavy quarks in GeV
+    verbose : bool
+        Whether to print additional information or not
+    plot : bool
+        Whether to plot the running of the gauge couplings or not
+    
+    Returns
+    -------
+    tuple[float, int]
+        A tuple of the mass scale of the LP in GeV and the index of the LP in the array of gauge couplings
+        
+    Notes
+    -----
+    - The running of the gauge couplings is solved using a 4,5-Runge-Kutta method with adaptive step size control
+    - The highest every scale considered is 7.8e42 GeV; if no LP is found below this scale, the value for the LP is set to this scale
+    """
     convert = lambda t: MASS_Z*np.exp(2*np.pi*t)
     model_arr = np.array(model, dtype='int')
     a_bSM, b_bSM = running_Q_contrib(model_arr, repinfo)
-    t0, t1 = 0, 20
-    y0 = np.array([1/0.016923, 1/0.03374, 1/0.1173]) # \alpha^{-1} ar m_Z = 91.188 GeV
+    t0, t1 = 0, 15
+    # Initial values for \f$\alpha^{-1}\f$ at the Z boson mass MASS_Z ~ 91.2 GeV
+    y0 = np.array([1/0.016923, 1/0.03374, 1/0.1173])
     sol = solve_ivp(running, (t0, t1), y0, args=(a_SM, b_SM, a_bSM, b_bSM, mQ), events=hit_LP, method='RK45', rtol=1e-8, atol=1e-7)
     try:
         tLP = sol.t_events[0][0]
     except IndexError:
         if verbose:
             print("INFO. No Landau pole found below {:.2e} GeV.".format(convert(t1)))
-        # N.B. Setting this to t1 to ensure that the LP criterion is applied correctly.
-        #      However, it should be kept in mind that this is not a true LP.
         tLP = t1
     indLP = np.argmin(sol.y[:,-1])
     muLP = convert(tLP)
