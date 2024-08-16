@@ -125,12 +125,15 @@ def find_LP(model: list[int], mQ: float = 5e11, lp_threshold: float = 1e18, verb
     t0, t1 = 0, np.log(lp_threshold/MASS_Z)/(2*np.pi) + 10
     # Initial values for \f$\alpha^{-1}\f$ at the Z boson mass MASS_Z ~ 91.2 GeV
     y0 = np.array([1/0.016923, 1/0.03374, 1/0.1173])
-    sol = solve_ivp(running, (t0, t1), y0, args=(a_SM, b_SM, a_bSM, b_bSM, mQ), events=hit_LP, method='RK45', rtol=1e-8, atol=1e-7)
-    try:
+    sol = solve_ivp(running, (t0, t1), y0, args=(a_SM, b_SM, a_bSM, b_bSM, mQ), events=hit_LP, method='RK45', rtol=1e-6, atol=1e-6)
+    if sol.status == 1:
         tLP = sol.t_events[0][0]
-    except IndexError:
-        if verbose:
-            print("INFO. No Landau pole found below {:.2e} GeV; setting the LP scale to inf.".format(convert(t1)))
+    else:
+        mu_stop = convert(sol.t[-1])
+        if sol.status < 0:
+            raise RuntimeError("ERROR. Solver stopped at {:.2e} below the threshold of {:.2e} GeV! {:s}".format(mu_stop, lp_threshold, sol.message))
+        elif verbose:
+            print(f"INFO. No Landau pole found below {mu_stop:.2e} GeV; setting the LP scale to inf.")
         tLP = np.inf
     indLP = np.argmin(sol.y[:,-1])
     muLP = convert(tLP)
