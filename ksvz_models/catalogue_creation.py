@@ -148,7 +148,6 @@ def create_full_catalogue(nq_max: int, verbose: bool = True) -> None:
                print(f"Reading file {h5name_old} with {len(models):d} models to extend", flush=True)
          data = np.column_stack((evals, nvals, models))
          if len(models) > 0:
-            n_models -= len(data)
             for mod in models:
                # N.B. The multiset_partitions generator expects a list as the first argument
                new_rows = []
@@ -157,7 +156,7 @@ def create_full_catalogue(nq_max: int, verbose: bool = True) -> None:
                   new_rows.append(new_row)
                new_rows = np.array(new_rows, dtype='int')
                data = np.vstack((data, new_rows))
-            n_models += len(data)
+            n_models += len(new_rows)
             with h5.File(h5name_new, 'w') as f:
                f.attrs['LP_threshold'] = lp_threshold
                f.attrs['m_Q'] = mQ
@@ -166,5 +165,5 @@ def create_full_catalogue(nq_max: int, verbose: bool = True) -> None:
                f.create_dataset("N", data=data[:,1], dtype='i4')
          elif verbose:
             print(f"No models to extend for N_Q = {q:d} and mass {mQ:.2e} GeV.", flush=True)
-      print("Computed {:d} additional, valid models for N_Q = {:d} with {:d} mass(es) after {:.2f} mins.".format(n_models, q, n_masses, (time.time()-t1)/60), flush=True)
+      print("Computed {:d} additional models for N_Q = {:d} with {:d} mass(es) after {:.2f} mins.".format(n_models, q, n_masses, (time.time()-t1)/60), flush=True)
    print("All tasks completed after {:.2f} mins.".format((time.time()-t0)/60), flush=True)
