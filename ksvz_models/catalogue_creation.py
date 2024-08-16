@@ -20,26 +20,30 @@ def compute_eon_values(models: np.ndarray[int], repinfo: np.ndarray = repinfo) -
       eonvals.append([e, n])
    return np.array(eonvals, dtype='int')
 
-def save_initial_catalogue(masses: list[float], reps: list[int]) -> None:
+def save_initial_catalogue(masses: list[float], reps: list[int], lp_threshold: float = 1.0e18) -> None:
    for q in [1, 2]:
       t0 = time.time()
       models = np.array(list(combinations_with_replacement(reps, q)), dtype='int')
       print(f"Created combinations for N_Q = {q:d}...", flush=True)
       eonvals = compute_eon_values(models, repinfo)
+      n_models = 0
       for i,mQ in enumerate(masses):
          h5name = f"output/data/addNQ{q:d}_m{i:d}.h5"
          lps = []
          for model in models:
                lp, _ = find_LP(model, mQ, plot=False)
                lps.append(lp)
+         lps = np.array(lps)
+         cond = (lps >= lp_threshold)
+         n_models += sum(cond)
          with h5.File(h5name, 'w') as f:
-               f.attrs['LP_threshold'] = np.inf
+               f.attrs['LP_threshold'] = lp_threshold
                f.attrs['m_Q'] = mQ
-               f.create_dataset("model", data=models, dtype='i2')
-               f.create_dataset("E", data=eonvals[:,0], dtype='i4')
-               f.create_dataset("N", data=eonvals[:,1], dtype='i4')
-               f.create_dataset("LP", data=lps, dtype='f8')
-      print("Computed {:d} models for N_Q = {:d} with {:d} mass(es) after {:.2f} mins.".format(len(models), q, len(masses), (time.time()-t0)/60), flush=True)
+               f.create_dataset("model", data=models[cond], dtype='i2')
+               f.create_dataset("E", data=eonvals[cond,0], dtype='i4')
+               f.create_dataset("N", data=eonvals[cond,1], dtype='i4')
+               f.create_dataset("LP", data=lps[cond], dtype='f8')
+      print("Computed {:d} valid models for N_Q = {:d} with {:d} mass(es) after {:.2f} mins.".format(n_models, q, len(masses), (time.time()-t0)/60), flush=True)
 
 @njit
 def extend_additive_models(models: np.ndarray[int]) -> np.ndarray[int]:
@@ -63,7 +67,7 @@ def extend_additive_models(models: np.ndarray[int]) -> np.ndarray[int]:
    new_models = [[i]+list(mod) for mod in models for i in range(1, mod[0]+1)]
    return np.array(new_models, dtype='int')
 
-def create_extended_catalogue(nq_max: int, lp_threshold: float = 1.0e18, verbose: bool = True) -> None:
+def create_extended_catalogue(nq_max: int, verbose: bool = True) -> None:
    if nq_max < 3:
       raise ValueError("nq_max must be at least 3.")
    if not os.path.isfile("output/data/addNQ2_m0.h5"):
@@ -83,29 +87,29 @@ def create_extended_catalogue(nq_max: int, lp_threshold: float = 1.0e18, verbose
          h5name_new = f"output/data/addNQ{q:d}_m{i:d}.h5"
          with h5.File(h5name_old, 'r') as f:
             mQ = f.attrs['m_Q']
-            lp_threshold_old = f.attrs['LP_threshold']
-            if lp_threshold_old < lp_threshold:
-               raise ValueError(f"LP threshold for {h5name_old} is lower (more restrictive) than the new threshold.")
+            lp_threshold = f.attrs['LP_threshold']
             models = f["model"][:]
             lps = f["LP"][:]
             cond = (lps >= lp_threshold)
             models_to_extend = models[cond]
          if len(models_to_extend) > 0:
             new_models = extend_additive_models(models_to_extend)
-            n_models += len(new_models)
             eonvals = compute_eon_values(new_models, repinfo)
             lps = []
             for model in new_models:
                lp, _ = find_LP(model, mQ, plot=False, verbose=verbose)
                lps.append(lp)
+            lps = np.array(lps)
+            cond = (lps >= lp_threshold)
+            n_models += sum(cond)
             with h5.File(h5name_new, 'w') as f:
                f.attrs['LP_threshold'] = lp_threshold
                f.attrs['m_Q'] = mQ
-               f.create_dataset("model", data=new_models, dtype='i2')
-               f.create_dataset("E", data=eonvals[:,0], dtype='i4')
-               f.create_dataset("N", data=eonvals[:,1], dtype='i4')
-               f.create_dataset("LP", data=lps, dtype='f8')
-      print("Computed {:d} models for N_Q = {:d} with {:d} mass(es) after {:.2f} mins.".format(n_models, q, n_masses, (time.time()-t1)/60), flush=True)
+               f.create_dataset("model", data=new_models[cond], dtype='i2')
+               f.create_dataset("E", data=eonvals[cond,0], dtype='i4')
+               f.create_dataset("N", data=eonvals[cond,1], dtype='i4')
+               f.create_dataset("LP", data=lps[cond], dtype='f8')
+      print("Computed {:d} valid models for N_Q = {:d} with {:d} mass(es) after {:.2f} mins.".format(n_models, q, n_masses, (time.time()-t1)/60), flush=True)
    print("All tasks completed after {:.2f} mins.".format((time.time()-t0)/60), flush=True)
 
 @njit
@@ -118,7 +122,7 @@ def extend_all_models(set1: list[int], set2: list[int], repinfo: np.ndarray[int]
    rew_row = np.array([e, n] + reps, dtype='int')
    return rew_row
 
-def create_full_catalogue(nq_max: int, lp_threshold: float = 1.0e18, verbose: bool = True) -> None:
+def create_full_catalogue(nq_max: int, verbose: bool = True) -> None:
    if nq_max < 2:
       raise ValueError("nq_max must be at least 2.")
    t0 = time.time()
@@ -136,19 +140,16 @@ def create_full_catalogue(nq_max: int, lp_threshold: float = 1.0e18, verbose: bo
          h5name_new = f"output/data/allNQ{q:d}_m{i:d}.h5"
          with h5.File(h5name_old, 'r') as f:
             mQ = f.attrs['m_Q']
-            lp_threshold_old = f.attrs['LP_threshold']
-            if lp_threshold_old < lp_threshold:
-               raise ValueError(f"LP threshold for {h5name_old} is lower (more restrictive) than the new threshold.")
-            cond = (f["LP"][:] >= lp_threshold)
-            evals = f["E"][cond]
-            nvals = f["N"][cond]
-            models_to_extend = f["model"][cond]
+            lp_threshold = f.attrs['LP_threshold']
+            evals = f["E"][:]
+            nvals = f["N"][:]
+            models = f["model"][:]
             if verbose:
-               print(f"Reading file {h5name_old} with {len(models_to_extend):d} models to extend", flush=True)
-         data = np.column_stack((evals, nvals, models_to_extend))
-         if len(models_to_extend) > 0:
+               print(f"Reading file {h5name_old} with {len(models):d} models to extend", flush=True)
+         data = np.column_stack((evals, nvals, models))
+         if len(models) > 0:
             n_models -= len(data)
-            for mod in models_to_extend:
+            for mod in models:
                # N.B. The multiset_partitions generator expects a list as the first argument
                for set1,set2 in multiset_partitions(list(mod),2):
                   new_row = extend_all_models(set1, set2, repinfo)
@@ -162,5 +163,5 @@ def create_full_catalogue(nq_max: int, lp_threshold: float = 1.0e18, verbose: bo
                f.create_dataset("N", data=data[:,1], dtype='i4')
          elif verbose:
             print(f"No models to extend for N_Q = {q:d} and mass {mQ:.2e} GeV.", flush=True)
-      print("Computed {:d} models for N_Q = {:d} with {:d} mass(es) after {:.2f} mins.".format(n_models, q, n_masses, (time.time()-t1)/60), flush=True)
+      print("Computed {:d} additional, valid models for N_Q = {:d} with {:d} mass(es) after {:.2f} mins.".format(n_models, q, n_masses, (time.time()-t1)/60), flush=True)
    print("All tasks completed after {:.2f} mins.".format((time.time()-t0)/60), flush=True)
