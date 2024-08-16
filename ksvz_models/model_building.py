@@ -77,12 +77,30 @@ def running(t, y, a_SM, b_SM, a_bSM, b_bSM, mQ):
     tQ = np.log(mQ/MASS_Z)/(2*np.pi)
     a = a_SM + (t > tQ)*a_bSM
     b = b_SM + (t > tQ)*b_bSM
-    dydt = -a - b.dot(1/y)/(4*np.pi)
+    # Once y < 0, we are in the unphysical region; however, for easier root finding,
+    # we should a bit deeper in this regime by replacing 1/y -> abs(1/y).
+    dydt = -a - b.dot(1/np.abs(y))/(4*np.pi)
     return dydt
+
+"""
+@njit
+def jac(t, y, unused1, b_SM, unused2, b_bSM, mQ):
+    tQ = np.log(mQ/MASS_Z)/(2*np.pi)
+    b = b_SM + (t > tQ)*b_bSM
+    d2ydij = (b/(y*y))/(4*np.pi)
+    return d2ydij
+
+@njit
+def start_diverging(unused1: float, y: np.ndarray[float], *unused2: tuple[any, ...]) -> float:
+    return min(y) - 0.1
+start_diverging.direction = -1
+start_diverging.terminal = True
+""";
 
 @njit
 def hit_LP(unused1: float, y: np.ndarray[float], *unused2: tuple[any, ...]) -> float:
     return min(y)
+hit_LP.direction = -1
 hit_LP.terminal = True
 
 n_g = 3
@@ -116,8 +134,8 @@ def find_LP(model: list[int], mQ: float = 5e11, lp_threshold: float = 1e18, verb
         
     Notes
     -----
-    - The running of the gauge couplings is solved using a 4,5-Runge-Kutta method with adaptive step size control
-    - The highest every scale considered is 7.8e42 GeV; if no LP is found below this scale, the value for the LP is set to np.inf
+    - The running of the gauge couplings is solved using a (4,5)-Runge-Kutta method with adaptive step size control
+    - If no LP is found below the max. scale considered, the value for the LP is set to np.inf
     """
     convert = lambda t: MASS_Z*np.exp(2*np.pi*t)
     model_arr = np.array(model, dtype='int')
@@ -125,28 +143,32 @@ def find_LP(model: list[int], mQ: float = 5e11, lp_threshold: float = 1e18, verb
     t0, t1 = 0, np.log(lp_threshold/MASS_Z)/(2*np.pi) + 10
     # Initial values for \f$\alpha^{-1}\f$ at the Z boson mass MASS_Z ~ 91.2 GeV
     y0 = np.array([1/0.016923, 1/0.03374, 1/0.1173])
-    sol = solve_ivp(running, (t0, t1), y0, args=(a_SM, b_SM, a_bSM, b_bSM, mQ), events=hit_LP, method='RK45', rtol=1e-6, atol=1e-6)
+    # sol1 = solve_ivp(running, (t0, t1), y0, args=(a_SM, b_SM, a_bSM, b_bSM, mQ), events=start_diverging, method='RK45', rtol=1e-7, atol=1e-7) # , first_step=0.1) # , max_step=1e-2)
+    # t0 = sol1.t[-1]
+    # y0 = sol1.y[:,-1]
+    sol = solve_ivp(running, (t0, t1), y0, args=(a_SM, b_SM, a_bSM, b_bSM, mQ), events=hit_LP, method='RK45', rtol=3e-14, atol=1e-6, first_step=0.1)
     if sol.status == 1:
         tLP = sol.t_events[0][0]
     else:
         mu_stop = convert(sol.t[-1])
-        if sol.status < 0:
+        if mu_stop < lp_threshold:
             raise RuntimeError("ERROR. Solver stopped at {:.2e} below the threshold of {:.2e} GeV! {:s}".format(mu_stop, lp_threshold, sol.message))
         elif verbose:
-            print(f"INFO. No Landau pole found below {mu_stop:.2e} GeV; setting the LP scale to inf.")
+            print(f"INFO. No Landau pole found below {convert(t1):.2e} GeV; setting the LP scale to inf.")
         tLP = np.inf
     indLP = np.argmin(sol.y[:,-1])
     muLP = convert(tLP)
     if plot:
-        mu = convert(sol.t)
-        g = np.sqrt(4*np.pi/sol.y)
-        for i in range(3):
-            plt.plot(mu, g[i], label=f"$g_{(i+1):d}$")
+        # mu1 = convert(sol1.t)
+        mu2 = convert(sol.t)
+        for i,c in enumerate(['r', 'b', 'orange']):
+            # plt.plot(mu1, sol1.y[i], c=c, ls='--')
+            plt.plot(mu2, sol.y[i], c=c, label=f"$\\alpha_{(i+1):d}$")
         plt.gca().axvline(MASS_Z*np.exp(2*np.pi*tLP), c='k', ls='--')
+        plt.gca().axhline(0, c='k', ls='--')
         plt.xscale('log')
-        plt.yscale('log')
         plt.xlabel(r'$\mu$ [GeV]')
-        plt.ylabel(r'$g$')
+        plt.ylabel(r'$\alpha^{-1}$')
         plt.legend()
         plt.savefig("running_SMpre.pdf")
     return muLP, indLP

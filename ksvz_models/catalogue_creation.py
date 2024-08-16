@@ -24,7 +24,6 @@ def save_initial_catalogue(masses: list[float], reps: list[int], lp_threshold: f
    for q in [1, 2]:
       t0 = time.time()
       models = np.array(list(combinations_with_replacement(reps, q)), dtype='int')
-      print(f"Created combinations for N_Q = {q:d}...", flush=True)
       eonvals = compute_eon_values(models, repinfo)
       n_models = 0
       for i,mQ in enumerate(masses):
@@ -156,7 +155,7 @@ def create_full_catalogue(nq_max: int, verbose: bool = True) -> None:
                   new_rows.append(new_row)
                new_rows = np.array(new_rows, dtype='int')
                data = np.vstack((data, new_rows))
-            n_models += len(new_rows)
+               n_models += len(new_rows)
             with h5.File(h5name_new, 'w') as f:
                f.attrs['LP_threshold'] = lp_threshold
                f.attrs['m_Q'] = mQ
