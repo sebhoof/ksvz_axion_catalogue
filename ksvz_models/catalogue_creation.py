@@ -119,7 +119,7 @@ def extend_all_models(set1: list[int], set2: list[int], repinfo: np.ndarray[int]
    else:
       reps = list(set2) + [-r for r in set1]
    e, n = encalc_times_36(reps, repinfo)
-   rew_row = np.array([e, n] + reps, dtype='int')
+   rew_row = [e, n] + reps
    return rew_row
 
 def create_full_catalogue(nq_max: int, verbose: bool = True) -> None:
@@ -151,9 +151,12 @@ def create_full_catalogue(nq_max: int, verbose: bool = True) -> None:
             n_models -= len(data)
             for mod in models:
                # N.B. The multiset_partitions generator expects a list as the first argument
+               new_rows = []
                for set1,set2 in multiset_partitions(list(mod),2):
                   new_row = extend_all_models(set1, set2, repinfo)
-                  data = np.vstack((data, new_row))
+                  new_rows.append(new_row)
+               new_rows = np.array(new_rows, dtype='int')
+               data = np.vstack((data, new_rows))
             n_models += len(data)
             with h5.File(h5name_new, 'w') as f:
                f.attrs['LP_threshold'] = lp_threshold
