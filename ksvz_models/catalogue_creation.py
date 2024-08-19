@@ -45,7 +45,7 @@ def save_initial_catalogue(masses: list[float], reps: list[int], lp_threshold: f
       print("Computed {:d} valid models for N_Q = {:d} with {:d} mass(es) after {:.2f} mins.".format(n_models, q, len(masses), (time.time()-t0)/60), flush=True)
 
 @njit
-def extend_additive_models(models: np.ndarray[int]) -> np.ndarray[int]:
+def extend_additive_models(models: np.ndarray[int], allowed_reps: np.ndarray[int]) -> np.ndarray[int]:
    """
    Extend the models by one new heavy quark.
 
@@ -53,6 +53,8 @@ def extend_additive_models(models: np.ndarray[int]) -> np.ndarray[int]:
    ----------
    models : np.ndarray[int]
       An (m,n)-array of m models with n heavy quarks to extend
+   allowed_reps : np.ndarray[int]
+      A 1d array of allowed representations to consider
 
    Returns
    -------
@@ -63,36 +65,49 @@ def extend_additive_models(models: np.ndarray[int]) -> np.ndarray[int]:
    -----
    - To avoid double couting, we only add representations with the lables up the label of the value of the first one
    """
-   new_models = [[i]+list(mod) for mod in models for i in range(1, mod[0]+1)]
+   
+   new_models = [[r]+list(mod) for mod in models for r in allowed_reps if r <= mod[0]]
    return np.array(new_models, dtype='int')
 
-def create_extended_catalogue(nq_max: int, verbose: bool = True) -> None:
+def create_extended_catalogue(nq_max: int, verbose: bool = True, nq_min: float = 3) -> None:
    if nq_max < 3:
       raise ValueError("nq_max must be at least 3.")
+   if nq_min < 2:
+      raise ValueError("nq_min must be at least 2.")
    if not os.path.isfile("output/data/addNQ2_m0.h5"):
       raise FileNotFoundError("Initial catalogues not found for N_Q = 2.")
    t0 = time.time()
    if verbose:
-      qrange = trange(3, nq_max+1)
+      qrange = trange(nq_min+1, nq_max+1)
    else:
-      qrange = range(3, nq_max+1)
+      qrange = range(nq_min+1, nq_max+1)
+   n_masses = len([f for f in os.listdir("output/data/") if f.startswith(f"addNQ1_m")])
+   n_masses_check = len([f for f in os.listdir("output/data/") if f.startswith(f"addNQ2_m")])
+   if n_masses != n_masses_check:
+      raise RuntimeError("Inconsistent number of masses in the initial N_Q = 1 and N_Q = 2 catalogues.")
+   # Retrieve LP-allowed reps from the initial catalogue
+   allowed_reps = []
+   for i in range(n_masses):
+      h5name_1 = f"output/data/addNQ1_m{i:d}.h5"
+      with h5.File(h5name_1, 'r') as f:
+         lp_threshold = f.attrs['LP_threshold']
+         cond = (f["LP"][:] >= lp_threshold)
+         allowed_reps.append(f["model"][cond].T[0])
+   allowed_reps = np.array(allowed_reps, dtype='int')
    for q in qrange:
       t1 = time.time()
-      existing_cats = [f for f in os.listdir("output/data/") if f.startswith(f"addNQ{(q-1):d}_m")]
-      n_masses = len(existing_cats)
       n_models = 0
       for i in range(n_masses):
          h5name_old = f"output/data/addNQ{(q-1):d}_m{i:d}.h5"
          h5name_new = f"output/data/addNQ{q:d}_m{i:d}.h5"
          with h5.File(h5name_old, 'r') as f:
             mQ = f.attrs['m_Q']
-            lp_threshold = f.attrs['LP_threshold']
             models = f["model"][:]
             lps = f["LP"][:]
             cond = (lps >= lp_threshold)
             models_to_extend = models[cond]
          if len(models_to_extend) > 0:
-            new_models = extend_additive_models(models_to_extend)
+            new_models = extend_additive_models(models_to_extend, allowed_reps[i])
             eonvals = compute_eon_values(new_models, repinfo)
             lps = []
             for model in new_models:
