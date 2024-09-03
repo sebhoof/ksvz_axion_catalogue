@@ -36,6 +36,12 @@ def charges_from_rep(rep: int, repinfo: np.ndarray = repinfo) -> tuple[int, ...]
     return r3, r2, r1, ind, sgn
 
 @njit
+def min_dim_from_rep(rep: int, repinfo: np.ndarray = repinfo) -> int:
+    ind = abs(rep) - 1
+    d_min = repinfo[ind][3]
+    return d_min
+
+@njit
 def encalc_times_36(reps: np.ndarray[int], repinfo: np.ndarray = repinfo) -> tuple[int, int]:
     e, n = 0, 0
     for rep in reps:
@@ -95,7 +101,7 @@ def start_diverging(unused1: float, y: np.ndarray[float], *unused2: tuple[any, .
     return min(y) - 0.1
 start_diverging.direction = -1
 start_diverging.terminal = True
-""";
+"""
 
 @njit
 def hit_LP(unused1: float, y: np.ndarray[float], *unused2: tuple[any, ...]) -> float:

@@ -27,21 +27,21 @@ def save_initial_catalogue(masses: list[float], reps: list[int], lp_threshold: f
       eonvals = compute_eon_values(models, repinfo)
       n_models = 0
       for i,mQ in enumerate(masses):
-         h5name = f"output/data/addNQ{q:d}_m{i:d}.h5"
+         h5name = f"output/data/addNQ{q:02d}_m{i:d}.h5"
          lps = []
          for model in models:
-               lp, _ = find_LP(model, mQ, plot=False)
-               lps.append(lp)
+            lp, _ = find_LP(model, mQ, plot=False)
+            lps.append(lp)
          lps = np.array(lps)
          cond = (lps >= lp_threshold)
          n_models += sum(cond)
          with h5.File(h5name, 'w') as f:
-               f.attrs['LP_threshold'] = lp_threshold
-               f.attrs['m_Q'] = mQ
-               f.create_dataset("model", data=models[cond], dtype='i2')
-               f.create_dataset("E", data=eonvals[cond,0], dtype='i4')
-               f.create_dataset("N", data=eonvals[cond,1], dtype='i4')
-               f.create_dataset("LP", data=lps[cond], dtype='f8')
+            f.attrs['LP_threshold'] = lp_threshold
+            f.attrs['m_Q'] = mQ
+            f.create_dataset("model", data=models[cond], dtype='i2')
+            f.create_dataset("E", data=eonvals[cond,0], dtype='i4')
+            f.create_dataset("N", data=eonvals[cond,1], dtype='i4')
+            f.create_dataset("LP", data=lps[cond], dtype='f8')
       print("Computed {:d} valid models for N_Q = {:d} with {:d} mass(es) after {:.2f} mins.".format(n_models, q, len(masses), (time.time()-t0)/60), flush=True)
 
 @njit
@@ -65,41 +65,33 @@ def extend_additive_models(models: np.ndarray[int], allowed_reps: np.ndarray[int
    -----
    - To avoid double couting, we only add representations with the lables up the label of the value of the first one
    """
-   
    new_models = [[r]+list(mod) for mod in models for r in allowed_reps if r <= mod[0]]
    return np.array(new_models, dtype='int')
 
-def create_extended_catalogue(nq_max: int, verbose: bool = True, nq_min: float = 3) -> None:
+def create_extended_catalogue(nq_max: int, verbose: bool = True) -> None:
    if nq_max < 3:
       raise ValueError("nq_max must be at least 3.")
-   if nq_min < 2:
-      raise ValueError("nq_min must be at least 2.")
-   if not os.path.isfile("output/data/addNQ2_m0.h5"):
+   if not os.path.isfile("output/data/addNQ02_m0.h5"):
       raise FileNotFoundError("Initial catalogues not found for N_Q = 2.")
    t0 = time.time()
-   if verbose:
-      qrange = trange(nq_min+1, nq_max+1)
-   else:
-      qrange = range(nq_min+1, nq_max+1)
-   n_masses = len([f for f in os.listdir("output/data/") if f.startswith(f"addNQ1_m")])
-   n_masses_check = len([f for f in os.listdir("output/data/") if f.startswith(f"addNQ2_m")])
-   if n_masses != n_masses_check:
-      raise RuntimeError("Inconsistent number of masses in the initial N_Q = 1 and N_Q = 2 catalogues.")
    # Retrieve LP-allowed reps from the initial catalogue
+   inital_cats = ["output/data/"+f for f in os.listdir("output/data/") if f.startswith(f"addNQ01_m")]
    allowed_reps = []
-   for i in range(n_masses):
-      h5name_1 = f"output/data/addNQ1_m{i:d}.h5"
+   for h5name_1 in inital_cats:
       with h5.File(h5name_1, 'r') as f:
          lp_threshold = f.attrs['LP_threshold']
          cond = (f["LP"][:] >= lp_threshold)
          allowed_reps.append(f["model"][cond].T[0])
    allowed_reps = np.array(allowed_reps, dtype='int')
-   for q in qrange:
+   for q in range(3, nq_max+1):
       t1 = time.time()
+      qold = q-1
+      previous_cats = ["output/data/"+f for f in os.listdir("output/data/") if f.startswith(f"addNQ{qold:02d}_m")]
+      n_masses = len(previous_cats)
       n_models = 0
-      for i in range(n_masses):
-         h5name_old = f"output/data/addNQ{(q-1):d}_m{i:d}.h5"
-         h5name_new = f"output/data/addNQ{q:d}_m{i:d}.h5"
+      for h5name_old in previous_cats:
+         i = int(h5name_old.split(f"addNQ{qold:02d}_m")[1].split(".h5")[0])
+         h5name_new = f"output/data/addNQ{q:02d}_m{i:d}.h5"
          with h5.File(h5name_old, 'r') as f:
             mQ = f.attrs['m_Q']
             models = f["model"][:]
@@ -146,12 +138,12 @@ def create_full_catalogue(nq_max: int, verbose: bool = True) -> None:
       qrange = range(2, nq_max+1)
    for q in qrange:
       t1 = time.time()
-      existing_cats = [f for f in os.listdir("output/data/") if f.startswith(f"addNQ{q:d}_m")]
-      n_masses = len(existing_cats)
+      previous_cats = ["output/data/"+f for f in os.listdir("output/data/") if f.startswith(f"addNQ{q:02d}_m")]
+      n_masses = len(previous_cats)
       n_models = 0
-      for i in range(n_masses):
-         h5name_old = f"output/data/addNQ{q:d}_m{i:d}.h5"
-         h5name_new = f"output/data/allNQ{q:d}_m{i:d}.h5"
+      for h5name_old in previous_cats:
+         s = h5name_old.split("add")
+         h5name_new = s[0] + "all" + s[1]
          with h5.File(h5name_old, 'r') as f:
             mQ = f.attrs['m_Q']
             lp_threshold = f.attrs['LP_threshold']
