@@ -104,13 +104,15 @@ def extend_all_models(set1: list[int], set2: list[int], repinfo: np.ndarray[int]
    rew_row = [e, n] + reps
    return rew_row
 
-def create_full_catalogues(nq_max: int) -> None:
+def create_full_catalogues(mass_indices: np.ndarray[int], nq_max: int) -> None:
    t0 = time.time()
-   mass_indices = [int(f.split("models_m")[1].split(".h5")[0]) for f in os.listdir("output/data/") if f.startswith("add_KSVZ")]
+   # mass_indices = [int(f.split("models_m")[1].split(".h5")[0]) for f in os.listdir("output/data/") if f.startswith("add_KSVZ")]
    for i in mass_indices:
       h5name = f"output/data/KSVZ_models_m{i:d}.h5"
+      h5name_add = f"output/data/add_KSVZ_models_m{i:d}.h5"
+      if not os.path.isfile(h5name_add):
+         raise RuntimeError(f"File {h5name_add} does not exist.", flush=True)
       with h5.File(h5name, 'a') as f:
-         h5name_add = f"output/data/add_KSVZ_models_m{i:d}.h5"
          with h5.File(h5name_add, 'r') as f0:
             mQ = f0.attrs['m_Q']
             lp_threshold = f0.attrs['LP_threshold']
