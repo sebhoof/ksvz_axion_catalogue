@@ -78,7 +78,7 @@ def additive_catalogues(masses: list[float], reps: list[int], nq_max: int = 31, 
                append_data(f, gr_str, models[cond], eonvals[cond,0], eonvals[cond,1], lps[cond])
             elif extend_models:
                models_to_extend = f[f"NQ{(nQ-1):d}"]["model"][:]
-               allowed_reps = f["NQ01"]["model"][:].T[0]
+               allowed_reps = f["NQ1"]["model"][:].T[0]
                new_models = extend_additive_models(models_to_extend, allowed_reps)
                eonvals = compute_eon_values(new_models, repinfo)
                lps = np.array([find_LP(model, mQ, plot=False)[0] for model in new_models])
