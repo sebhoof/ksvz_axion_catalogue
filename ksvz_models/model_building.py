@@ -116,6 +116,14 @@ b2 = n_g*np.array([[19/15.0, 0.2, 11/30.0], [0.6, 49/3.0, 1.5], [44/15.0, 4, 76/
 b3 = np.array([[9/50.0, 0.3, 0], [0.9, 13/6.0, 0], [0, 0, 0]])
 b_SM = (-b1+b2+b3).T
 
+@njit
+def param_conversion(t: float) -> float:
+    return MASS_Z*np.exp(2*np.pi*t)
+
+@njit
+def inv_param_conversion(erg: float) -> float:
+    return np.log(erg/MASS_Z)/(2*np.pi)
+
 def find_LP(model: list[int], mQ: float = 5e11, lp_threshold: float = 1e18, verbose: bool = True, plot: bool = False) -> tuple[float, int]:
     """
     Find the (lowest) Landau pole (LP) in the running of the gauge couplings.
@@ -143,7 +151,6 @@ def find_LP(model: list[int], mQ: float = 5e11, lp_threshold: float = 1e18, verb
     - The running of the gauge couplings is solved using a (4,5)-Runge-Kutta method with adaptive step size control
     - If no LP is found below the max. scale considered, the value for the LP is set to np.inf
     """
-    convert = lambda t: MASS_Z*np.exp(2*np.pi*t)
     model_arr = np.array(model, dtype='int')
     a_bSM, b_bSM = running_Q_contrib(model_arr, repinfo)
     t0, t1 = 0, np.log(lp_threshold/MASS_Z)/(2*np.pi) + 10
@@ -156,17 +163,17 @@ def find_LP(model: list[int], mQ: float = 5e11, lp_threshold: float = 1e18, verb
     if sol.status == 1:
         tLP = sol.t_events[0][0]
     else:
-        mu_stop = convert(sol.t[-1])
+        mu_stop = param_conversion(sol.t[-1])
         if mu_stop < lp_threshold:
             raise RuntimeError("ERROR. Solver stopped at {:.2e} below the threshold of {:.2e} GeV! {:s}".format(mu_stop, lp_threshold, sol.message))
         elif verbose:
-            print(f"INFO. No Landau pole found below {convert(t1):.2e} GeV; setting the LP scale to inf.")
+            print(f"INFO. No Landau pole found below {param_conversion(t1):.2e} GeV; setting the LP scale to inf.")
         tLP = np.inf
     indLP = np.argmin(sol.y[:,-1])
-    muLP = convert(tLP)
+    muLP = param_conversion(tLP)
     if plot:
         # mu1 = convert(sol1.t)
-        mu2 = convert(sol.t)
+        mu2 = param_conversion(sol.t)
         for i,c in enumerate(['r', 'b', 'orange']):
             # plt.plot(mu1, sol1.y[i], c=c, ls='--')
             plt.plot(mu2, sol.y[i], c=c, label=f"$\\alpha_{(i+1):d}$")
@@ -178,3 +185,30 @@ def find_LP(model: list[int], mQ: float = 5e11, lp_threshold: float = 1e18, verb
         plt.legend()
         plt.savefig("running_SMpre.pdf")
     return muLP, indLP
+
+"""
+@njit
+def sm_running(t, _, a_SM, a_bSM, mQ):
+    tQ = np.log(mQ/MASS_Z)/(2*np.pi)
+    a = a_SM + (t > tQ)*a_bSM
+    return [-a]
+""";
+
+"""
+def running_of_alpha(mQ: float = 5e11):
+    t0 = 0
+    y0 = [1/0.1173]
+    de = (np.log10(mQ)-np.log10(0.15))/200
+    ergvals, invalphavals = [], []
+    t1 = inv_param_conversion(0.15)
+    sol = solve_ivp(simple_running, (t0, t1), y0, args=(a_SM[2], 0, mQ), method='RK45', dense_output=True)
+    ergs = np.arange(np.log10(0.15), 0, de)
+    ergvals += list(ergs)
+    invalphavals += list(sol.sol(inv_param_conversion(10**ergs))[0])
+    t1 = inv_param_conversion(mQ)
+    sol = solve_ivp(simple_running, (t0, t1), y0, args=(a_SM[2], 0, mQ), method='RK45', dense_output=True)
+    ergs = np.arange(0, np.log10(mQ)+de, de)
+    ergvals += list(ergs)
+    invalphavals += list(sol.sol(inv_param_conversion(10**ergs))[0])
+    return ergvals, invalphavals
+""";
