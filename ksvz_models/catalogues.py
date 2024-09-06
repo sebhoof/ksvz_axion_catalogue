@@ -127,7 +127,7 @@ def create_full_catalogues(mass_indices: np.ndarray[int], nq_max: int) -> None:
                   print(f"Group {gr_str} does not exist in file {h5name_add}; skipping...", flush=True)
                   continue
                if nQ == 1:
-                  append_data(f, "NQ01", f0["NQ01"]["model"][:], f0["NQ01"]["E"][:], f0["NQ01"]["N"][:])
+                  append_data(f, "NQ1", f0["NQ1"]["model"][:], f0["NQ1"]["E"][:], f0["NQ1"]["N"][:])
                   continue
                t1 = time.time()
                evals = f0[gr_str]["E"][:]
