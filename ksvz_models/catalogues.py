@@ -65,7 +65,7 @@ def additive_catalogues(masses: list[float], reps: list[int], nq_max: int = 31, 
          f.attrs["m_Q"] = mQ
          for nQ in range(1, nq_max+1):
             t1 = time.time()
-            gr_str = f"NQ{nQ:02d}"
+            gr_str = f"NQ{nQ:d}"
             if gr_str in f:
                print(f"Group {gr_str} already exists in file {h5name}; skipping...", flush=True)
                continue
@@ -77,7 +77,7 @@ def additive_catalogues(masses: list[float], reps: list[int], nq_max: int = 31, 
                n_valid_models = sum(cond)
                append_data(f, gr_str, models[cond], eonvals[cond,0], eonvals[cond,1], lps[cond])
             elif extend_models:
-               models_to_extend = f[f"NQ{(nQ-1):02d}"]["model"][:]
+               models_to_extend = f[f"NQ{(nQ-1):d}"]["model"][:]
                allowed_reps = f["NQ01"]["model"][:].T[0]
                new_models = extend_additive_models(models_to_extend, allowed_reps)
                eonvals = compute_eon_values(new_models, repinfo)
@@ -119,7 +119,7 @@ def create_full_catalogues(mass_indices: np.ndarray[int], nq_max: int) -> None:
             f.attrs['LP_threshold'] = lp_threshold
             f.attrs['m_Q'] = mQ
             for nQ in range(1, nq_max+1):
-               gr_str = f"NQ{nQ:02d}"
+               gr_str = f"NQ{nQ:d}"
                if gr_str in f:
                   print(f"Group {gr_str} already exists in file {h5name}; skipping...", flush=True)
                   continue
