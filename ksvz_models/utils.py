@@ -27,15 +27,17 @@ def fast_factorial(n: int) -> int:
 
 @njit
 def sign(x):
+   """
+   Implementation of the sign function.
+
+   Parameters
+   ----------
+   x : float
+      The input value.
+
+   Returns
+   -------
+   int
+      The sign of the input value (-1, 0, or 1)
+   """
    return (x > 0) - (x < 0)
-
-@njit
-def itherm_integrand(xi: float, x: float, pm: int = 1):
-   xi2 = xi*xi
-   return xi2/(np.exp(np.sqrt(xi2 + x*x)) + pm)
-
-@njit
-def jtherm_integrand(xi: float, x: float, pm: int = 1):
-   xi2 = xi*xi
-   sq = np.sqrt(xi2 + x*x)
-   return xi2*sq/(np.exp(sq) + pm)

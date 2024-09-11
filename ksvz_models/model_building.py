@@ -155,7 +155,7 @@ def find_LP(model: list[int], mQ: float = 5e11, lp_threshold: float = 1e18, verb
     a_bSM, b_bSM = running_Q_contrib(model_arr, repinfo)
     t0, t1 = 0, np.log(lp_threshold/MASS_Z)/(2*np.pi) + 10
     # Initial values for \f$\alpha^{-1}\f$ at the Z boson mass MASS_Z ~ 91.2 GeV
-    y0 = np.array([1/0.016923, 1/0.03374, 1/0.1173])
+    y0 = np.array([1/0.016923, 1/0.03374, 1/ALPHA_S_MZ])
     # sol1 = solve_ivp(running, (t0, t1), y0, args=(a_SM, b_SM, a_bSM, b_bSM, mQ), events=start_diverging, method='RK45', rtol=1e-7, atol=1e-7) # , first_step=0.1) # , max_step=1e-2)
     # t0 = sol1.t[-1]
     # y0 = sol1.y[:,-1]
