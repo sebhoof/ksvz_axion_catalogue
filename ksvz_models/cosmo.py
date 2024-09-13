@@ -1,10 +1,13 @@
 # cosmo.py
 
+import matplotlib.pyplot as plt
 import numpy as np
+import scipy
 import scipy.special as sp
 import os
 
 from numba import njit
+from scipy.integrate import solve_ivp
 
 from .constants import *
 from .utils import fast_factorial
@@ -447,7 +450,7 @@ def dilutedQ(_: float, y: np.ndarray[float], mQ: float, *unused) -> float:
 dilutedQ.terminal = True
 
 @njit
-def decayingQs(_: float, y: np.ndarray, mQ: float, qdims: np.ndarray[int]) -> np.ndarray:
+def decayingQs(_: float, y: np.ndarray, mQ: float, qdims: np.ndarray[int], qmult: np.ndarray[int]) -> np.ndarray:
    """
    Compute the RHS of the Boltzmann equation for the heavy quarks
 
@@ -468,14 +471,104 @@ def decayingQs(_: float, y: np.ndarray, mQ: float, qdims: np.ndarray[int]) -> np
    if len(y) == 1:
       return np.array([-y[0]/gamma_scaling(y[0])])
    te, nQ = y[0], y[1:]
-   nQeq = n_Q_eq(te, mQ)
+   nQ_sq = nQ*nQ
+   nQeq = qmult*n_Q_eq(te, mQ)
+   nQeq_sq = nQeq*nQeq
    eQ = e_Q(te, mQ)
    rhoQ = nQ*eQ
    h = hubble(te, sum(rhoQ))
    s = n_s_SM(te)
    decays = np.array([gammad(mQ, d=d) for d in qdims])*(nQ - nQeq)/h
-   annihilations = sigmav(te, mQ)*(nQ*nQ - nQeq*nQeq)/h
+   annihilations = sigmav(te, mQ)*(nQ_sq - nQeq_sq)/h
    te_eq = [(-te + sum(decays)*eQ/(3*s))/gamma_scaling(te)]
    q_eq = -3*nQ - decays - annihilations
    q_eq = list(q_eq)
    return np.array(te_eq + q_eq)
+
+def dim_signature(dims: np.ndarray[int]) -> tuple[str, np.ndarray[int], np.ndarray[int]]:
+   qdims, qmult = np.unique(dims, return_counts=True)
+   mult_string = ""
+   for d0 in range(5,9):
+      if d0 in qdims:
+         mult_string += "_"+str(qmult[qdims==d0][0])
+      else:
+         mult_string += "_0"
+   return mult_string, qdims, qmult
+
+def compute_cosmology(dims: np.ndarray[int], mQ: float) -> tuple[np.ndarray[float], np.ndarray[float], list[scipy.integrate._ivp.ivp.OdeResult], str]:
+   mult_string, qdims, qmult = dim_signature(dims)
+   neqs = len(qdims)
+   ubreaks, tebreaks, sols = [], [], []
+   cont, no_bbn = True, True
+   sel0 = neqs*[1]
+   te_ini = max(10*mQ, 1e9)
+   u1 = 0
+   ufin1 = np.log(1e19*(mQ/1e11))
+   nQ_ini = n_Q_eq(te_ini, mQ)
+   y1 = np.array([te_ini] + [m*nQ_ini for m in qmult])
+   while cont:
+      sol = solve_ivp(decayingQs, [u1, ufin1], y1, args=(mQ, qdims, qmult,), dense_output=True, events=(crossBBN, dilutedQ,), method='RK45', rtol=1e-7, atol=0)
+      try:
+         u2 = sol.t_events[0][0]
+         # If the BBN event is triggered, we stop the solver
+         cont = False
+         no_bbn = False
+      except IndexError:
+         u2 = sol.t[-1]
+      try:
+         u2 = sol.t_events[1][0]
+         # If a dilution event is triggered, we save the result and continue solving the equation
+         u1 = u2
+         te = sol.y[0][-1]
+         tebreaks.append(te)
+         nQ = sol.y[1:][:,-1]
+         rhoQ = nQ*e_Q(te, mQ)
+         rhoSM = rho_SM(te)
+         sel0 = [r > 1.01*Q_DILUTION_FAC*rhoSM for r in rhoQ]
+         indices = np.where(sel0)
+         y1 = np.array([te] + list(nQ[indices]))
+         qdims = qdims[indices]
+         qmult = qmult[indices]
+      except IndexError:
+         if no_bbn:
+            raise RuntimeError("Stopping solver at u = {:.3f} (T = {:.2e} GeV); this should not happen...".format(sol.t[-1], sol.sol(sol.t[-1])[0]))
+      ubreaks.append(u2)
+      sols.append(sol)
+   return ubreaks, tebreaks, sols, mult_string
+
+def save_cosmology(ubreaks, tebreaks, sols, mult_string, mQ, mindex, output_root="output/cosmo/alt_cosmo", plot=False, verbose=True):
+   u2 = ubreaks[-1]
+   uvals = np.linspace(0, u2, 500)
+   tevals, lnhvals, wvals = [], [], []
+   uind = 0
+   for u in uvals:
+      if u > ubreaks[uind]:
+         uind += 1
+      s = sols[uind].sol(u)
+      te = s[0]
+      nQsum = sum(s[1:])
+      tevals.append(te)
+      wvals.append(w(te,nQsum,mQ))
+      eQ = e_Q(te, mQ)
+      lnhvals.append(np.log(hubble(te,nQsum*eQ)))
+   res = np.array([uvals, tevals, lnhvals]).T
+   bbn_check = 3*wvals[-1]
+   # N.B. Do not add a header to the output file; MiMeS cannot handle it
+   np.savetxt(output_root+mult_string+f"_m{mindex:d}.dat", res, fmt="%.9f", delimiter="\t")
+   if verbose:
+      print("New model {:s} | afin = {:.2e} | Tfin = {:.1e} GeV | BBN check: {:.3f}".format(mult_string[1:], np.exp(u2), te, bbn_check))
+   if plot:
+      plt.plot(1e-3/np.array(tevals), wvals, 'k-')
+      plt.gca().axvline(1, c='r', ls='-', label=r"$T_\mathrm{BBN}$")
+      plt.gca().axvline(1/150, c='r', ls='--', label=r"$T_\mathrm{QCD}$")
+      for tbr in tebreaks:
+         plt.gca().axvline(1e-3/tbr, c='grey', ls=':')
+      # plt.legend(frameon=False, loc=(0, 0), title=r"$[d_1,\,d_2]$, $m_\mathcal{Q} = 10^{12}\,\mathrm{GeV}$", ncol=1)
+      plt.legend(frameon=False)
+      plt.xlabel(r"$T_\mathrm{BBN}/T$")
+      plt.ylabel(r"Equation of state $w$")
+      plt.xscale('log')
+      plt.xlim([1e-3/(10*mQ), 2])
+      plt.ylim([0, 0.34])
+      plt.show()
+   return bbn_check, res
