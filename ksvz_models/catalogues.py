@@ -219,6 +219,8 @@ def additive_catalogues_fast(masses: list[float], reps: list[int], nq_max: int =
             print("Computed {:d} valid models for m_Q = {:.2e} GeV and N_Q = {:d} after {:.2f} mins.".format(n_valid_models, mQ, nQ, (time.time()-t1)/60), flush=True)
             if n_valid_models > 0:
                append_data_fast(f, gr_str, models_to_add)
+            else:
+               extend_models = False
       with open(bbn_fname, 'wb') as file:
          pickle.dump(bbn_check_dict, file, protocol=pickle.HIGHEST_PROTOCOL)
    print("All tasks completed after {:.2f} mins.".format((time.time()-t0)/60), flush=True)
