@@ -485,18 +485,18 @@ def decayingQs(_: float, y: np.ndarray, mQ: float, qdims: np.ndarray[int], qmult
    q_eq = list(q_eq)
    return np.array(te_eq + q_eq)
 
-def dim_signature(dims: np.ndarray[int]) -> tuple[str, np.ndarray[int], np.ndarray[int]]:
-   qdims, qmult = np.unique(dims, return_counts=True)
+@njit
+def dim_signature(qdims: np.ndarray[int], qmult: np.ndarray[int]) -> tuple[str, np.ndarray[int], np.ndarray[int]]:
    mult_string = ""
    for d0 in range(5,9):
       if d0 in qdims:
          mult_string += "_"+str(qmult[qdims==d0][0])
       else:
          mult_string += "_0"
-   return mult_string, qdims, qmult
+   return mult_string
 
-def compute_cosmology(dims: np.ndarray[int], mQ: float) -> tuple[np.ndarray[float], np.ndarray[float], list[scipy.integrate._ivp.ivp.OdeResult], str]:
-   mult_string, qdims, qmult = dim_signature(dims)
+def compute_cosmology(qdims: np.ndarray[int], qmult: np.ndarray[int], mQ: float) -> tuple[np.ndarray[float], np.ndarray[float], list[scipy.integrate._ivp.ivp.OdeResult], str]:
+   mult_string = dim_signature(qdims, qmult)
    neqs = len(qdims)
    ubreaks, tebreaks, sols = [], [], []
    cont, no_bbn = True, True
