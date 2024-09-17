@@ -15,6 +15,8 @@ ALPHA_S_MZ = 0.1173
 ALPHA_S_SQ = ALPHA_S_MZ*ALPHA_S_MZ
 # zeta(3) = 1.2020569...
 ZETA3 = zeta(3)
+# Planck '18 result: omh2 = 0.1198(12) [arXiv:1807.06209]
+PLANCK18_OMH2_LIMIT = 0.1222
 
 # Solver-specific constant
 Q_DILUTION_FAC = 1e-20

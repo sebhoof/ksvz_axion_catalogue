@@ -10,7 +10,8 @@ from itertools import combinations_with_replacement
 from numba import njit
 from sympy.utilities.iterables import multiset_partitions
 
-from .cosmo import compute_cosmology, save_cosmology
+from .constants import PLANCK18_OMH2_LIMIT
+from .cosmo import compute_cosmology, omh2_axion, omh2_axion_sm, save_cosmology
 from .model_building import encalc_times_36, find_LP, min_dim_from_rep, repinfo
 
 @njit
@@ -146,27 +147,45 @@ def create_full_catalogues(mass_indices: np.ndarray[int], nq_max: int) -> None:
                print("Computed {:d} new models for m_Q = {:.2e} GeV and N_Q = {:d} after {:.2f} mins.".format(n_new_models, mQ, nQ, (time.time()-t1)/60), flush=True)
    print("All tasks completed after {:.2f} mins.".format((time.time()-t0)/60), flush=True)
 
-def check_additive_model_fast(models, mQ, mindex, bbn_check_dict, bbn_threshold, lp_threshold) -> None:
+def check_additive_model_fast(models, mQ, mindex, cosmo_dict, bbn_threshold: float, lp_threshold: float, omh2_threshold: float = PLANCK18_OMH2_LIMIT, thetai: float = 2.2, verbose: bool = False) -> None:
+   if mQ < 1e9:
+      raise ValueError("mQ must be at least 1e9 GeV for now.")
+   omh2_std = omh2_axion_sm(mQ, thetai)
    models_to_add = []
    for m in models:
-      bbn_check = 1
-      if mQ > 1e9:
-         dims = np.array([min_dim_from_rep(r) for r in m], dtype='int')
-         dims = dims[(dims > 4)&(dims < 9)]
-         if len(dims) > 0:
-            qdims, qmult = np.unique(dims, return_counts=True)
-            tpl_dims = tuple([qmult[qdims==d0][0] if d0 in qdims else 0 for d0 in range(5,9)])
-            try:
-               bbn_check = bbn_check_dict[tpl_dims]
-            except KeyError:
-               ubreaks, tebreaks, sols, mult_string = compute_cosmology(qdims, qmult, mQ)
-               bbn_check, _ = save_cosmology(ubreaks, tebreaks, sols, mult_string, mQ, mindex, output_root="/Users/sebhoof/Software/ksvz_axion_catalogue/output/cosmo/alt_cosmo", plot=False, verbose=True)
-               bbn_check_dict[tpl_dims] = bbn_check
-      if bbn_check > bbn_threshold:
+      wBBn, omh2, lp = 1, omh2_std, np.nan
+      bbn_check = True
+      omh2_check = (omh2_std < omh2_threshold)
+      dims = np.array([min_dim_from_rep(r) for r in m], dtype='int')
+      dims = dims[(dims > 4)&(dims < 9)]
+      qdims, qmult = np.unique(dims, return_counts=True)
+      tpl_dims = tuple([qmult[qdims==d0][0] if d0 in qdims else 0 for d0 in range(5,9)])
+      if len(qdims) > 0:
+         try:
+            wBBn, omh2, lp = cosmo_dict[tpl_dims]
+            bbn_check = (wBBn > bbn_threshold)
+            omh2_check = (omh2 < omh2_threshold)
+            lp_check = (lp > lp_threshold)
+         except KeyError:
+            ubreaks, tebreaks, sols, mult_string = compute_cosmology(qdims, qmult, mQ)
+            output_file = "/Users/sebhoof/Software/ksvz_axion_catalogue/output/cosmo/alt_cosmo"+mult_string+f"_m{mindex:d}.dat"
+            wBBn, _ = save_cosmology(ubreaks, tebreaks, sols, mQ, output_file, plot=False, verbose=True)
+            bbn_check = (wBBn > bbn_threshold)
+            if verbose:
+               print(f"Model {m} | wBBn = {wBBn:.4f}.", flush=True)
+            if bbn_check:
+               omh2 = omh2_axion(mQ, output_file, thetai)
+               omh2_check = (omh2 < omh2_threshold)
+            if verbose:
+               print(f"Model {m} | omh2 = {omh2:.2e}.", flush=True)
+      if bbn_check and omh2_check:
          lp = find_LP(m, mQ, plot=False)[0]
-         lp_check = lp >= lp_threshold
+         lp_check = (lp > lp_threshold)
+         if verbose:
+            print(f"Model {m} | LP = {lp:.2e} GeV.", flush=True)
          if lp_check:
             models_to_add.append(m)
+      cosmo_dict[tpl_dims] = (wBBn, omh2, lp)
    return models_to_add
 
 def append_data_fast(file, gr_str: str, mods: np.ndarray[int]) -> None:
@@ -181,24 +200,29 @@ def extend_all_models_fast(set1: list[int], set2: list[int]) -> list[int]:
       reps = list(set2) + [-r for r in set1]
    return reps
 
-def additive_catalogues_fast(masses: list[float], reps: list[int], nq_max: int = 31, lp_threshold: float = 1.0e18, bbn_threshold: float = 0.9) -> None:
+def additive_catalogues_fast(masses: list[float], reps: list[int], nq_max: int = 31, lp_threshold: float = 1.0e18, bbn_threshold: float = 0.9, omh2_threshold: float = PLANCK18_OMH2_LIMIT, verbose: bool = False) -> None:
    t0 = time.time()
    for i,mQ in enumerate(masses):
       h5name = f"output/data/small_add_KSVZ_models_m{i:d}.h5"
       if os.path.isfile(h5name):
          with h5.File(h5name, 'r') as f:
-            if (f.attrs["LP_threshold"] != lp_threshold) or (f.attrs["BBN_threshold"] != bbn_threshold) or (f.attrs["m_Q"] != mQ):
+            check1 = f.attrs["LP_threshold"] != lp_threshold
+            check2 = f.attrs["BBN_threshold"] != bbn_threshold
+            check3 = f.attrs["omh2_threshold"] != omh2_threshold
+            check4 = f.attrs["m_Q"] != mQ
+            if (check1 or check2 or check3 or check4):
                raise RuntimeError(f"File {h5name} already exists but with different mQ, or BBN or LP threshold.")
-      bbn_fname = f"/Users/sebhoof/Software/ksvz_axion_catalogue/output/cosmo/bbn_check_dict_m{i:d}.pkl"
-      bbn_check_dict = {}
-      if os.path.isfile(bbn_fname):
-         with open(bbn_fname, 'rb') as file:
-            bbn_check_dict = pickle.load(file)
+      cosmo_fname = f"/Users/sebhoof/Software/ksvz_axion_catalogue/output/cosmo/cosmo_dict_m{i:d}.pkl"
+      cosmo_dict = {}
+      if os.path.isfile(cosmo_fname):
+         with open(cosmo_fname, 'rb') as file:
+            cosmo_dict = pickle.load(file)
       with h5.File(h5name, 'a') as f:
          extend_models = True
+         f.attrs["m_Q"] = mQ
          f.attrs["LP_threshold"] = lp_threshold
          f.attrs["BBN_threshold"] = bbn_threshold
-         f.attrs["m_Q"] = mQ
+         f.attrs["omh2_threshold"] = omh2_threshold
          for nQ in range(1, nq_max+1):
             t1 = time.time()
             gr_str = f"NQ{nQ:d}"
@@ -214,13 +238,13 @@ def additive_catalogues_fast(masses: list[float], reps: list[int], nq_max: int =
             else:
                print(f"No models to extend for m_Q = {mQ:.2e} GeV and N_Q = {nQ:d}.", flush=True)
                continue
-            models_to_add = check_additive_model_fast(models, mQ, i, bbn_check_dict, bbn_threshold, lp_threshold)
+            models_to_add = check_additive_model_fast(models, mQ, i, cosmo_dict, bbn_threshold, lp_threshold, omh2_threshold, verbose=verbose)
             n_valid_models = len(models_to_add)
             print("Computed {:d} valid models for m_Q = {:.2e} GeV and N_Q = {:d} after {:.2f} mins.".format(n_valid_models, mQ, nQ, (time.time()-t1)/60), flush=True)
             if n_valid_models > 0:
                append_data_fast(f, gr_str, models_to_add)
             else:
                extend_models = False
-      with open(bbn_fname, 'wb') as file:
-         pickle.dump(bbn_check_dict, file, protocol=pickle.HIGHEST_PROTOCOL)
+      with open(cosmo_fname, 'wb') as file:
+         pickle.dump(cosmo_dict, file, protocol=pickle.HIGHEST_PROTOCOL)
    print("All tasks completed after {:.2f} mins.".format((time.time()-t0)/60), flush=True)

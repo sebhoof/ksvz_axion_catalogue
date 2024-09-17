@@ -8,6 +8,12 @@ import os
 
 from numba import njit
 from scipy.integrate import solve_ivp
+from sys import path as sysPath
+
+mimes_path = "/Users/sebhoof/Software/mimes/"
+sysPath.append(mimes_path+"/src/")
+from interfacePy.AxionMass import AxionMass
+from interfacePy.Axion import Axion
 
 from .constants import *
 from .utils import fast_factorial
@@ -503,7 +509,7 @@ def compute_cosmology(qdims: np.ndarray[int], qmult: np.ndarray[int], mQ: float)
    sel0 = neqs*[1]
    te_ini = max(10*mQ, 1e9)
    u1 = 0
-   ufin1 = np.log(1e19*(mQ/1e11))
+   ufin1 = np.log(1e21*(mQ/1e11))
    nQ_ini = n_Q_eq(te_ini, mQ)
    y1 = np.array([te_ini] + [m*nQ_ini for m in qmult])
    while cont:
@@ -536,7 +542,7 @@ def compute_cosmology(qdims: np.ndarray[int], qmult: np.ndarray[int], mQ: float)
       sols.append(sol)
    return ubreaks, tebreaks, sols, mult_string
 
-def save_cosmology(ubreaks, tebreaks, sols, mult_string, mQ, mindex, output_root="output/cosmo/alt_cosmo", plot=False, verbose=True):
+def save_cosmology(ubreaks, tebreaks, sols, mQ, output_file, plot=False, verbose=True):
    u2 = ubreaks[-1]
    uvals = np.linspace(0, u2, 500)
    tevals, lnhvals, wvals = [], [], []
@@ -554,9 +560,10 @@ def save_cosmology(ubreaks, tebreaks, sols, mult_string, mQ, mindex, output_root
    res = np.array([uvals, tevals, lnhvals]).T
    bbn_check = 3*wvals[-1]
    # N.B. Do not add a header to the output file; MiMeS cannot handle it
-   np.savetxt(output_root+mult_string+f"_m{mindex:d}.dat", res, fmt="%.9f", delimiter="\t")
+   np.savetxt(output_file, res, fmt="%.9f", delimiter="\t")
    if verbose:
-      print("New model {:s} | afin = {:.2e} | Tfin = {:.1e} GeV | BBN check: {:.3f}".format(mult_string[1:], np.exp(u2), te, bbn_check))
+      dimsig = output_file.split("alt_cosmo_")[-1].split("_m")[0]
+      print("New model {:s} | afin = {:.2e} | Tfin = {:.1e} GeV | BBN check: {:.3f}".format(dimsig, np.exp(u2), te, bbn_check))
    if plot:
       plt.plot(1e-3/np.array(tevals), wvals, 'k-')
       plt.gca().axvline(1, c='r', ls='-', label=r"$T_\mathrm{BBN}$")
@@ -572,3 +579,26 @@ def save_cosmology(ubreaks, tebreaks, sols, mult_string, mQ, mindex, output_root
       plt.ylim([0, 0.34])
       plt.show()
    return bbn_check, res
+
+def omh2_axion(mQ: float, cosmology: str, thetai: float = 2.2):
+   ma = AxionMass(mimes_path+"src/data/chi.dat", 0, M_PLANCK)
+   te_max, chi_max, chi_min = ma.getTMax(), ma.getChiMax(), ma.getChiMin()
+   @njit
+   def ma_high(te, fa):
+      return chi_max*pow(te_max/te, 8.16)/(fa*fa)
+   @njit
+   def ma_low(_, fa):
+      return chi_min/(fa*fa)
+   ma.set_ma2_MAX(ma_high)
+   ma.set_ma2_MIN(ma_low)
+   ax = Axion(thetai, mQ, 500, 1e-4, 1e3, 15, 1e-3, cosmology, ma, 1e-1, 1e-8, 1e-1, 1e-11, 1e-11, 0.9, 1.2, 0.8, int(1e7))
+   ax.solveAxion()
+   omh2 = ax.relic
+   # Cleaning up memory is required according to MiMeS documentation
+   del ax
+   del ma
+   return omh2
+
+def omh2_axion_sm(mQ: float, thetai: float = 2.2):
+   rd_cosmo = mimes_path+"UserSpace/InputExamples/RDinput.dat"
+   return omh2_axion(mQ, rd_cosmo, thetai)
