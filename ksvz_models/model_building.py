@@ -5,7 +5,7 @@ import os
 import matplotlib.pyplot as plt
 import numpy as np
 
-from numba import njit #, vectorize
+from numba import njit
 from scipy.integrate import solve_ivp
 
 from .constants import *
@@ -13,6 +13,7 @@ from .utils import sign
 
 file_path = os.path.dirname(os.path.realpath(__file__))
 repinfo = np.genfromtxt(file_path+"/data/rep_info.dat", dtype='int64')
+alphaSinfo = np.load(file_path+"/data/running_alphaS_SM.npy")
 
 def print_replist():
     print(repinfo)
@@ -186,29 +187,27 @@ def find_LP(model: list[int], mQ: float = 5e11, lp_threshold: float = 1e18, verb
         plt.savefig("running_SMpre.pdf")
     return muLP, indLP
 
-"""
 @njit
-def sm_running(t, _, a_SM, a_bSM, mQ):
-    tQ = np.log(mQ/MASS_Z)/(2*np.pi)
-    a = a_SM + (t > tQ)*a_bSM
-    return [-a]
-""";
+def running_SM(_, y, a_SM, b_SM):
+    dydt = -a_SM - b_SM.dot(1/np.abs(y))/(4*np.pi)
+    return dydt
 
-"""
-def running_of_alpha(mQ: float = 5e11):
-    t0 = 0
-    y0 = [1/0.1173]
-    de = (np.log10(mQ)-np.log10(0.15))/200
-    ergvals, invalphavals = [], []
-    t1 = inv_param_conversion(0.15)
-    sol = solve_ivp(simple_running, (t0, t1), y0, args=(a_SM[2], 0, mQ), method='RK45', dense_output=True)
-    ergs = np.arange(np.log10(0.15), 0, de)
-    ergvals += list(ergs)
-    invalphavals += list(sol.sol(inv_param_conversion(10**ergs))[0])
-    t1 = inv_param_conversion(mQ)
-    sol = solve_ivp(simple_running, (t0, t1), y0, args=(a_SM[2], 0, mQ), method='RK45', dense_output=True)
-    ergs = np.arange(0, np.log10(mQ)+de, de)
-    ergvals += list(ergs)
-    invalphavals += list(sol.sol(inv_param_conversion(10**ergs))[0])
-    return ergvals, invalphavals
-""";
+def running_of_alphaS(fname: str = "running_alpha_SM.npy") -> np.ndarray[float]:
+    t0, tZ, t1 = inv_param_conversion(0.15), 0, inv_param_conversion(M_PLANCK)
+    tvals = np.linspace(t0, t1, 250)
+    ergvals, alphavals = [], []
+    # Initial values for \f$\alpha^{-1}\f$ at the Z boson mass MASS_Z ~ 91.2 GeV
+    yZ = np.array([1.0/0.016923, 1.0/0.03374, 1.0/ALPHA_S_MZ])
+    # First: running down to the QCD scale
+    sol = solve_ivp(running_SM, (tZ, t0), yZ, args=(a_SM, b_SM), method='RK45', rtol=1e-8, atol=1e-8, dense_output=True)
+    tvals0 = tvals[tvals <= tZ]
+    ergvals += list(param_conversion(tvals0))
+    alphavals += list(1/sol.sol(tvals0)[2])
+    # Second: running up to the Planck scale
+    sol = solve_ivp(running_SM, (tZ, t1), yZ, args=(a_SM, b_SM), method='RK45', rtol=1e-8, atol=1e-8, dense_output=True)
+    tvals1 = tvals[tvals > tZ]
+    ergvals += list(param_conversion(tvals1))
+    alphavals += list(1/sol.sol(tvals1)[2])
+    res = np.column_stack((ergvals, alphavals))
+    np.save(fname, res, allow_pickle=False)
+    return res[res[:,0].argsort()]
