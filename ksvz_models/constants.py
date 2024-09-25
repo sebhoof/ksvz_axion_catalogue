@@ -13,6 +13,8 @@ MASS_Z = 91.1880 # GeV
 # The strong coupling constant at the Z boson mass
 ALPHA_S_MZ = 0.1173
 ALPHA_S_SQ = ALPHA_S_MZ*ALPHA_S_MZ
+# The fine structure constant
+ALPHA_EM = 1.0/137.035999206
 # zeta(3) = 1.2020569...
 ZETA3 = zeta(3)
 # Planck '18 result: omh2 = 0.1198(12) [arXiv:1807.06209]
