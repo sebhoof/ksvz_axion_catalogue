@@ -481,8 +481,9 @@ def decayingQs(_: float, y: np.ndarray, mQ: float, qdims: np.ndarray[int], qmult
    rhoQ = nQ*eQ
    h = hubble(te, sum(rhoQ))
    s = n_s_SM(te)
-   # decays = np.array([gammad(mQ, d=d) for d in qdims])*(nQ - nQeq)/h
-   decays = np.array([gammad(mQ, d=d) for d in qdims])*nQ/h
+   # Include inverse decays
+   decays = np.array([gammad(mQ, d=d) for d in qdims])*(nQ - nQeq)/h
+   # decays = np.array([gammad(mQ, d=d) for d in qdims])*nQ/h
    annihilations = sigmav(te, mQ)*(nQ_sq - nQeq_sq)/h
    te_eq = [(-te + sum(decays)*eQ/(3*s))/gamma_scaling(te)]
    q_eq = -3*nQ - decays - annihilations
@@ -511,7 +512,7 @@ def compute_cosmology(qdims: np.ndarray[int], qmult: np.ndarray[int], mQ: float,
    nQ_ini = n_Q_eq(te_ini, mQ)
    y1 = np.array([te_ini] + [m*nQ_ini for m in qmult])
    while cont:
-      sol = solve_ivp(decayingQs, [u1, ufin1], y1, args=(mQ, qdims, qmult), dense_output=True, events=(crossBBN, dilutedQ), method='RK45', rtol=1e-6, atol=0)
+      sol = solve_ivp(decayingQs, [u1, ufin1], y1, args=(mQ, qdims, qmult), dense_output=True, events=(crossBBN, dilutedQ), method='RK45', rtol=1e-7, atol=0)
       try:
          u2 = sol.t_events[0][0]
          # If the BBN event is triggered, we stop the solver
