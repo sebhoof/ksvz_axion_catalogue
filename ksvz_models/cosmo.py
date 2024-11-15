@@ -23,7 +23,7 @@ from .utils import fast_factorial
 ### Decay operator functions ###
 
 @njit
-def gammad(mQ: float, d: int = 5, scale: float = M_PLANCK) -> float:
+def gammad(mQ: float, d: int, scale: float = M_PLANCK) -> float:
    """
    Compute a decay rate for a dimension d operator from dimensional analysis.
 
@@ -52,7 +52,7 @@ def gammad(mQ: float, d: int = 5, scale: float = M_PLANCK) -> float:
 ### Annihilation cross section ###
 
 @njit
-def sigmav(te, mQ, nf=3, cg=220.0/27, cf=2.0/9, alphaSinfo=alphaSinfo):
+def sigmav(te, mQ, nf=6, cf=2.0/9, cg=220.0/27, alphaSinfo=alphaSinfo):
    """
    Compute the annihilation cross section for a heavy quark.
 
@@ -63,11 +63,11 @@ def sigmav(te, mQ, nf=3, cg=220.0/27, cf=2.0/9, alphaSinfo=alphaSinfo):
    mQ : float
       Mass of the heavy quark (in GeV)
    nf : int
-      Number of light quarks
-   cg : float
-      Casimir factor for the adjoint representation
+      Number of quark flavours that Q can annihilate into (default: 6)
    cf : float
-      Casimir factor for the fundamental representation
+       Group theory factor; 2/9 for triplets, 3/2 for octets (default: 2/9)
+   cg : float
+      Group theory factor; 220/7 for triplets, 27/4 for octets (default: 220/27)
 
    Returns
    -------
@@ -75,7 +75,8 @@ def sigmav(te, mQ, nf=3, cg=220.0/27, cf=2.0/9, alphaSinfo=alphaSinfo):
       Annihilation cross section (in GeV^{-2})
    """
    alph = np.interp(np.log10(te), alphaSinfo[:,0], alphaSinfo[:,1])
-   return np.pi*alph*alph*(nf*cf+cg)/(16*mQ*mQ)
+   c_ann = nf*cf+cg
+   return np.pi*alph*alph*c_ann/(16*mQ*mQ)
 
 ### Thermal functions ###
 

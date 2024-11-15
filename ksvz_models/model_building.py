@@ -184,11 +184,24 @@ def running_SM(_, y, a_SM, b_SM):
     return dydt
 
 def running_of_alphaS(fname: str = "running_alpha_SM.npy") -> np.ndarray[float]:
+    """
+    Compute the running of the strong coupling constant \f$\alpha_S\f$ in the SM.
+
+    Parameters
+    ----------
+    fname : str
+        File name to save the results (default: "running_alpha_SM.npy")
+
+    Returns
+    -------
+    np.ndarray[float]
+        A 2D array of the energy scale and the inverse of the strong coupling constant \f$\alpha_S^{-1}\f$
+    """
     t0, tZ, t1 = inv_param_conversion(0.15), 0, inv_param_conversion(M_PLANCK)
     tvals = np.linspace(t0, t1, 250)
     ergvals, alphavals = [], []
     # Initial values for \f$\alpha^{-1}\f$ at the Z boson mass MASS_Z ~ 91.2 GeV
-    yZ = np.array([1.0/0.016923, 1.0/0.03374, 1.0/ALPHA_S_MZ])
+    yZ = np.array([1.0/ALPHA_1_MZ, 1.0/ALPHA_2_MZ, 1.0/ALPHA_S_MZ])
     # First: running down to the QCD scale
     sol = solve_ivp(running_SM, (tZ, t0), yZ, args=(a_SM, b_SM), method='RK45', rtol=1e-8, atol=1e-8, dense_output=True)
     tvals0 = tvals[tvals <= tZ]
