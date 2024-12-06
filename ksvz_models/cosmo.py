@@ -82,9 +82,8 @@ def sigmav(te, mQ, nf=6, cf=2.0/9, cg=220.0/27, alphaSinfo=alphaSinfo):
 
 # Cosmological data functions import
 file_path = os.path.dirname(os.path.realpath(__file__))
-gdata = np.genfromtxt(file_path+"/data/eff_dof_and_aux_functions_1803_01038.dat")
-gdata[:,0] -= 9 # Convert from eV to GeV 
-gdata[:,3] *= -1
+gdata = np.genfromtxt(file_path+"/data/eff_dof_and_transforms_1803_01038.dat")
+gdata[:,0] -= 9 # Convert from eV to GeV
 
 @njit
 def geff(te: float) -> float:
@@ -298,7 +297,7 @@ def n_Q_eq(te, mQ, gQ=2):
 @njit
 def e_Q(te: float, mQ: float) -> float:
    """
-   Compute the energy of a heavy quark in a plasma
+   Compute the (approximate) energy of a heavy quark in a plasma
 
    Parameters
    ----------
@@ -314,18 +313,17 @@ def e_Q(te: float, mQ: float) -> float:
 
    Notes
    -----
-   - The energy is the sum of the mass and the (average) thermal energy, making this an approximation
+   - This is the average energy per \f$\mathcal{Q}\f$ particle, valid for energies not much larger than the mass
    """
-   avg_erg = 3*te
-   return np.sqrt(mQ*mQ + avg_erg*avg_erg)
+   return mQ + 1.5*te
 
 
 ### Evolution of the Universe ###
 
 @njit
-def gamma_scaling(te: float) -> float:
+def gS_scaling(te: float) -> float:
    """
-   The scaling factor for the entropy density in the Universe.
+   The scaling factor related to the effective number of relativistic degrees of freedom in entropy.
 
    Parameters
    ----------
@@ -335,12 +333,32 @@ def gamma_scaling(te: float) -> float:
    Returns
    -------
    float
-      Scaling factor for the entropy density and temperature vs scale factor
+      Scaling factor for the Boltzmann equation
    """
    if te > 0:
       lgte = np.log10(te)
       return np.interp(lgte, gdata[:,0], gdata[:,3])
    return 1
+
+@njit
+def g_scaling(te: float) -> float:
+   """
+   The scaling factor related to the effective number of relativistic degrees of freedom in energy density.
+
+   Parameters
+   ----------
+   te : float
+      Temperature (in GeV)
+
+   Returns
+   -------
+   float
+      Scaling factor for the EOS computation
+   """
+   if te > 0:
+      lgte = np.log10(te)
+      return np.interp(lgte, gdata[:,0], gdata[:,4])
+   return 4
 
 @njit
 def hubble(te, rhoQ):
@@ -361,33 +379,6 @@ def hubble(te, rhoQ):
    """
    rhoR = rho_SM(te)
    return np.sqrt((rhoQ+rhoR)/3)/M_PLANCK_RED
-
-@njit
-def w(te, nQ, mQ):
-   """
-   Compute the equation of state parameter w of the Universe
-
-   Parameters
-   ----------
-   te : float
-      Temperature (in GeV)
-   nQ : float
-      Number density of the heavy quark (in GeV^3)
-   mQ : float
-      Mass of the heavy quark (in GeV)
-
-   Returns
-   -------
-   float
-      Equation of state parameter
-   """
-   nQeq = n_Q_eq(te, mQ)
-   rhoQ = nQ*e_Q(te, mQ)
-   h = hubble(te, rhoQ)
-   rhoR = rho_SM(te)
-   annihilations = sigmav(te, mQ)*(nQ*nQ - nQeq*nQeq)/h
-   dhduh = (3*rhoQ + 4*rhoR + annihilations)/(6*pow(M_PLANCK_RED*h,2))
-   return 2*dhduh/3 - 1
 
 
 ### Boltzmann equation and supporting functions ###
@@ -454,7 +445,7 @@ def dilutedQ(_: float, y: np.ndarray[float], mQ: float, *unused) -> float:
 dilutedQ.terminal = True
 
 @njit
-def decayingQs(_: float, y: np.ndarray, mQ: float, qdims: np.ndarray[int], qmult: np.ndarray[int]) -> np.ndarray:
+def decayingQs(_: float, y: np.ndarray, mQ: float, qdims: np.ndarray[int], qmult: np.ndarray[int], eft_scale: float = M_PLANCK) -> np.ndarray:
    """
    Compute the RHS of the Boltzmann equation for the heavy quarks
 
@@ -466,15 +457,21 @@ def decayingQs(_: float, y: np.ndarray, mQ: float, qdims: np.ndarray[int], qmult
       Array of equation values (first element is the temperature, the remaining are the number densities of the heavy quarks)
    mQ : float
       Mass of the heavy quarks (in GeV)
+   qdims : np.ndarray[int]
+      Dimensions of the operators
+   qmult : np.ndarray[int]
+      Multiplicities of the operators
+   eft_scale : float
+      Energy scale associated with the decay operators (default: M_PLANCK)
 
    Returns
    -------
    np.ndarray[float]
       Array of the derivatives of the equation values
    """
-   if len(y) == 1:
-      return np.array([-y[0]/gamma_scaling(y[0])])
    te, nQ = y[0], y[1:]
+   if len(y) == 1:
+      return np.array([-te/gS_scaling(te)])
    nQ_sq = nQ*nQ
    nQeq = qmult*n_Q_eq(te, mQ)
    nQeq_sq = nQeq*nQeq
@@ -483,16 +480,91 @@ def decayingQs(_: float, y: np.ndarray, mQ: float, qdims: np.ndarray[int], qmult
    h = hubble(te, sum(rhoQ))
    s = n_s_SM(te)
    # Include inverse decays
-   decays = np.array([gammad(mQ, d=d) for d in qdims])*(nQ - nQeq)/h
+   decays = np.array([gammad(mQ, d=d, scale=eft_scale) for d in qdims])*(nQ - nQeq)/h
    # decays = np.array([gammad(mQ, d=d) for d in qdims])*nQ/h
    annihilations = sigmav(te, mQ)*(nQ_sq - nQeq_sq)/h
-   te_eq = [(-te + sum(decays)*eQ/(3*s))/gamma_scaling(te)]
+   te_eq = [(-te + sum(decays)*eQ/(3*s))/gS_scaling(te)]
    q_eq = -3*nQ - decays - annihilations
    q_eq = list(q_eq)
    return np.array(te_eq + q_eq)
 
+# @TODO: remove
+# @njit
+# def eos_old(te: float, nQ: float, mQ: float) -> float:
+#    """
+#    Compute the equation of state parameter w of the Universe from the Boltzmann equation.
+
+#    Parameters
+#    ----------
+#    te : float
+#       Temperature (in GeV)
+#    nQ : float
+#       Number density of the heavy quark (in GeV^3)
+#    mQ : float
+#       Mass of the heavy quark (in GeV)
+
+#    Returns
+#    -------
+#    float
+#       Equation of state parameter
+#    """
+#    nQeq = n_Q_eq(te, mQ)
+#    rhoQ = nQ*e_Q(te, mQ)
+#    h = hubble(te, rhoQ)
+#    rhoR = rho_SM(te)
+#    annihilations = sigmav(te, mQ)*(nQ*nQ - nQeq*nQeq)/h
+#    dhduh = (3*rhoQ + 4*rhoR + annihilations)/(6*pow(M_PLANCK_RED*h,2))
+#    return 2*dhduh/3 - 1
+
 @njit
-def dim_signature(qdims: np.ndarray[int], qmult: np.ndarray[int]) -> tuple[str, np.ndarray[int], np.ndarray[int]]:
+def eos_SM(te: float) -> float:
+   """
+   Compute the equation of state parameter w of the Universe for the SM
+
+   Parameters
+   ----------
+   te : float
+      Temperature (in GeV)
+
+   Returns
+   -------
+   float
+      Equation of state parameter of the SM
+   """
+   gamma_ratio = g_scaling(te)/gS_scaling(te)
+   return gamma_ratio/3 - 1
+
+@njit
+def eos(yvals: np.ndarray[float], qdims: np.ndarray[int], qmult: np.ndarray[int], mQ: float) -> float:
+   """
+   Compute the equation of state parameter w of the Universe from the Boltzmann equation.
+
+   Parameters
+   ----------
+   te : float
+      Solution
+   mQ : float
+      Mass of the heavy quark (in GeV)
+
+   Returns
+   -------
+   float
+      Equation of state parameter
+   """
+   te, nQ = yvals[0], sum(yvals[1:])
+   if nQ > 0:
+      dydu = decayingQs(None, yvals, mQ, qdims, qmult)
+      dTdu, dndu = dydu[0], sum(dydu[1:])
+      eQ = e_Q(te, mQ)
+      rhoR = rho_SM(te)
+      hterm = 3*M_PLANCK_RED*hubble(te, nQ*eQ)
+      dh2du = (g_scaling(te)*dTdu*rhoR/te + dndu*eQ + 1.5*dTdu*nQ)
+      return - dh2du/(hterm*hterm) - 1
+   else:
+      return eos_SM(te)
+
+@njit
+def dim_signature(qdims: np.ndarray[int], qmult: np.ndarray[int]) -> str:
    mult_string = ""
    for d0 in range(5,9):
       if d0 in qdims:
@@ -501,11 +573,10 @@ def dim_signature(qdims: np.ndarray[int], qmult: np.ndarray[int]) -> tuple[str, 
          mult_string += "_0"
    return mult_string
 
-def compute_cosmology(qdims: np.ndarray[int], qmult: np.ndarray[int], mQ: float, verbose: bool = False) -> tuple[np.ndarray[float], np.ndarray[float], list[scipy.integrate._ivp.ivp.OdeResult], str]:
+def compute_cosmology(qdims: np.ndarray[int], qmult: np.ndarray[int], mQ: float, eft_scale: float = M_PLANCK, verbose: bool = False) -> tuple[np.ndarray[float], np.ndarray[float], list[scipy.integrate._ivp.ivp.OdeResult], str]:
    if len(qdims) != len(qmult):
       raise ValueError("The dimensions 'qdims' and multiplicities 'qmult' of the operators must have the same length")
-   mult_string = dim_signature(qdims, qmult)
-   ubreaks, tebreaks, sols = [], [], []
+   ubreaks, tebreaks, sols, dims, mults = [], [], [], [], []
    cont, no_bbn = True, True
    te_ini = 10*mQ
    u1 = 0
@@ -513,7 +584,10 @@ def compute_cosmology(qdims: np.ndarray[int], qmult: np.ndarray[int], mQ: float,
    nQ_ini = n_Q_eq(te_ini, mQ)
    y1 = np.array([te_ini] + [m*nQ_ini for m in qmult])
    while cont:
-      sol = solve_ivp(decayingQs, [u1, ufin1], y1, args=(mQ, qdims, qmult), dense_output=True, events=(crossBBN, dilutedQ), method='RK45', rtol=1e-7, atol=0)
+      sol = solve_ivp(decayingQs, [u1, ufin1], y1, args=(mQ, qdims, qmult, eft_scale), dense_output=True, events=(crossBBN, dilutedQ), method='RK45', rtol=1e-7, atol=0)
+      sols.append(sol)
+      dims.append(qdims)
+      mults.append(qmult)
       try:
          u2 = sol.t_events[0][0]
          # If the BBN event is triggered, we stop the solver
@@ -544,10 +618,9 @@ def compute_cosmology(qdims: np.ndarray[int], qmult: np.ndarray[int], mQ: float,
          if no_bbn:
             raise RuntimeError("Stopping solver at u = {:.3f} (T = {:.2e} GeV); this should not happen...".format(sol.t[-1], sol.sol(sol.t[-1])[0]))
       ubreaks.append(u2)
-      sols.append(sol)
-   return ubreaks, tebreaks, sols, mult_string
+   return ubreaks, tebreaks, sols, dims, mults
 
-def save_cosmology(ubreaks, tebreaks, sols, mQ, output_file, plot=False):
+def save_cosmology(ubreaks, tebreaks, sols, dims, mults, mQ, output_file, plot=False):
    u2 = ubreaks[-1]
    uvals = np.linspace(0, u2, 500)
    tevals, lnhvals, wvals = [], [], []
@@ -559,11 +632,12 @@ def save_cosmology(ubreaks, tebreaks, sols, mQ, output_file, plot=False):
       te = s[0]
       nQsum = sum(s[1:])
       tevals.append(te)
-      wvals.append(w(te,nQsum,mQ))
+      # wvals.append(eos_old(te,nQsum,mQ))
+      wvals.append(eos(s, dims[uind], mults[uind], mQ))
       eQ = e_Q(te, mQ)
       lnhvals.append(np.log(hubble(te,nQsum*eQ)))
    res = np.array([uvals, tevals, lnhvals]).T
-   bbn_check = 3*wvals[-1]
+   w_bbn = wvals[-1]
    # N.B. Do not add a header to the output file; MiMeS cannot handle it
    np.savetxt(output_file, res, fmt="%.9f", delimiter="\t")
    if plot:
@@ -580,7 +654,7 @@ def save_cosmology(ubreaks, tebreaks, sols, mQ, output_file, plot=False):
       plt.xlim([1e-3/(10*mQ), 2])
       plt.ylim([0, 0.34])
       plt.show()
-   return bbn_check, res
+   return w_bbn, res
 
 def omh2_axion(mQ: float, cosmology: str, thetai: float = 2.2):
    ma = AxionMass(mimes_path+"src/data/chi.dat", 0, M_PLANCK)

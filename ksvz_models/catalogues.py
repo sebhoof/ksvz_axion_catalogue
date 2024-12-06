@@ -10,12 +10,27 @@ from itertools import combinations_with_replacement
 from numba import njit
 from sympy.utilities.iterables import multiset_partitions
 
-from .constants import M_PLANCK_RED, PLANCK18_OMH2_LIMIT
-from .cosmo import compute_cosmology, omh2_axion, omh2_axion_sm, save_cosmology
+from .constants import PLANCK18_OMH2_LIMIT
+from .cosmo import *
 from .model_building import encalc_times_36, find_LP, min_dim_from_rep, repinfo
 
 @njit
 def compute_eon_values(models: np.ndarray[int], repinfo: np.ndarray = repinfo) -> np.ndarray[int]:
+   """
+   A wrapper function to compute the E and N values for a list of models.
+
+   Parameters
+   ----------
+   models : np.ndarray[int]
+      An (m,n)-array of m models containing the n representations of the Qs
+   repinfo : np.ndarray[int]
+      A 2d array containing the information about the representations
+
+   Returns
+   -------
+   np.ndarray[int]
+      An (m,2)-array of 36*E and 36*N integer values for each model
+   """
    eonvals = []
    for reps in models:
       e, n = encalc_times_36(reps, repinfo)
@@ -147,8 +162,9 @@ def create_full_catalogues(mass_indices: np.ndarray[int], nq_max: int) -> None:
                print("Computed {:d} new models for m_Q = {:.2e} GeV and N_Q = {:d} after {:.2f} mins.".format(n_new_models, mQ, nQ, (time.time()-t1)/60), flush=True)
    print("All tasks completed after {:.2f} mins.".format((time.time()-t0)/60), flush=True)
 
-def check_additive_model_fast(models, mQ, mindex, cosmo_dict, bbn_threshold: float, lp_threshold: float, omh2_threshold: float = PLANCK18_OMH2_LIMIT, thetai: float = 2.2, output_root: str = "output/catalogues/", verbose: bool = False) -> None:
+def check_additive_model_fast(models, mQ, mindex, cosmo_dict, w_threshold: float, lp_threshold: float, omh2_threshold: float = PLANCK18_OMH2_LIMIT, thetai: float = 2.2, output_root: str = "output/catalogues/", verbose: bool = False) -> None:
    omh2_std = omh2_axion_sm(mQ, thetai)
+   # wBBN_max, omh2_min = 0, np.inf
    new_models = []
    for m in models:
       wBBN, omh2 = 1, omh2_std
@@ -169,14 +185,15 @@ def check_additive_model_fast(models, mQ, mindex, cosmo_dict, bbn_threshold: flo
                try:
                   wBBN, omh2 = cosmo_dict[tpl_dims]
                except KeyError:
-                  ubreaks, tebreaks, sols, mult_string = compute_cosmology(qdims, qmult, mQ, verbose=False)
+                  ubreaks, tebreaks, sols, dims, mults = compute_cosmology(qdims, qmult, mQ, verbose=False)
+                  mult_string = dim_signature(qdims, qmult)
                   output_file = output_root+"alt_cosmo"+mult_string+f"_m{mindex:d}.dat"
-                  wBBN, _ = save_cosmology(ubreaks, tebreaks, sols, mQ, output_file, plot=False)
+                  wBBN, _ = save_cosmology(ubreaks, tebreaks, sols, dims, mults, mQ, output_file, plot=False)
                   omh2 = omh2_axion(mQ, output_file, thetai)
                   cosmo_dict[tpl_dims] = (wBBN, omh2)
                   if verbose:
                      print(f"New case: {tpl_dims} | wBBN = {wBBN:.4f}, omh2 = {omh2:.2e}.", flush=True)
-         bbn_check = (wBBN > bbn_threshold)
+         bbn_check = (wBBN > w_threshold)
          omh2_check = (omh2 < omh2_threshold)
          if bbn_check and omh2_check:
             new_models.append(m)
@@ -190,8 +207,9 @@ def extend_all_models_fast(set1: list[int], set2: list[int]) -> list[int]:
       reps = list(set2) + [-r for r in set1]
    return reps
 
-def additive_catalogues_fast(masses: list[float], reps: list[int], lp_threshold: float = 1.0e18, bbn_threshold: float = 0.9, omh2_threshold: float = PLANCK18_OMH2_LIMIT, thetai: float = 2.2, output_root: str = "output/catalogues/", verbose: bool = False) -> None:
+def additive_catalogues_fast(masses: list[float], reps: list[int], lp_threshold: float = 1.0e18, w_threshold: float = 0.3, omh2_threshold: float = PLANCK18_OMH2_LIMIT, thetai: float = 2.2, output_root: str = "", verbose: bool = False) -> None:
    t0 = time.time()
+   # wBBN_max, omh2_min = 0, np.inf
    for i,mQ in enumerate(masses):
       nQ = 1
       additive_models = []
@@ -209,7 +227,10 @@ def additive_catalogues_fast(masses: list[float], reps: list[int], lp_threshold:
          else:
             models_to_extend = additive_models[nQ-2]
             new_models = extend_additive_models(models_to_extend, additive_models[0].T[0])
-         models_to_add = check_additive_model_fast(new_models, mQ, i, cosmo_dict, bbn_threshold, lp_threshold, omh2_threshold, thetai=thetai, output_root=output_root, verbose=verbose)
+         models_to_add = check_additive_model_fast(new_models, mQ, i, cosmo_dict, w_threshold, lp_threshold, omh2_threshold, thetai=thetai, output_root=output_root, verbose=verbose)
+         # Save the min (max) value of wBBN (omh2) for the current mQ
+         # wBBN_max = max(wBBN, wBBN_max)
+         # omh2_min = min(omh2, omh2_min)
          n_valid_models = len(models_to_add)
          if verbose:
             print("Computed {:d} valid models for m_Q = {:.2e} GeV and N_Q = {:d} after {:.2f} mins.".format(n_valid_models, mQ, nQ, (time.time()-t1)/60), flush=True)
@@ -221,7 +242,7 @@ def additive_catalogues_fast(masses: list[float], reps: list[int], lp_threshold:
       with h5.File(h5name, 'w') as f:
          f.attrs["m_Q"] = mQ
          f.attrs["LP_threshold"] = lp_threshold
-         f.attrs["BBN_threshold"] = bbn_threshold
+         f.attrs["EOS_threshold"] = w_threshold
          f.attrs["Omh2_threshold"] = omh2_threshold
          for j,mods in enumerate(additive_models):
             gr_str = f"NQ{(j+1):d}"
@@ -243,13 +264,13 @@ def full_catalogues_fast(mass_indices: list[int], output_root: str = "output/cat
       with h5.File(h5name_add, 'r') as f0:
          mQ = f0.attrs["m_Q"]
          lp_threshold = f0.attrs["LP_threshold"]
-         bbn_threshold = f0.attrs["BBN_threshold"]
+         w_threshold = f0.attrs["EOS_threshold"]
          omh2_threshold = f0.attrs["Omh2_threshold"]
          groups = list(f0.keys())
       with h5.File(h5name, 'w') as f1:
          f1.attrs["m_Q"] = mQ
          f1.attrs["LP_threshold"] = lp_threshold
-         f1.attrs["BBN_threshold"] = bbn_threshold
+         f1.attrs["EOS_threshold"] = w_threshold
          f1.attrs["Omh2_threshold"] = omh2_threshold
       for gr in groups:
          t1 = time.time()
@@ -272,10 +293,9 @@ def full_catalogues_fast(mass_indices: list[int], output_root: str = "output/cat
          print("Computed {:d} new models for m_Q = {:.2e} GeV (N_Q = {:d}) after {:.2f} mins.".format(n_new_models, mQ, nQ, (time.time()-t1)/60), flush=True)
    print("All tasks completed after {:.2f} mins.".format((time.time()-t0)/60), flush=True)
 
-def check_additive_model_root_finding(mQ: float, models, lp_threshold: float, bbn_threshold: float = 0.9, omh2_threshold: float = PLANCK18_OMH2_LIMIT, thetai: float = 2.2, verbose: bool = False):
+def check_additive_model_root_finding(mQ: float, models, lp_threshold: float, w_threshold: float = 0.3, omh2_threshold: float = PLANCK18_OMH2_LIMIT, thetai: float = 2.2, eft_scale: float = M_PLANCK, verbose: bool = False):
    if mQ < 1e9:
       raise ValueError("mQ must be at least 1e9 GeV for now.")
-   # omh2_std = omh2_axion_sm(mQ, thetai)
    wBBN_max, omh2_min = 0, np.inf
    models_to_add = []
    known_cosmo = []
@@ -291,10 +311,11 @@ def check_additive_model_root_finding(mQ: float, models, lp_threshold: float, bb
          is_new_cosmo = tpl_dims not in known_cosmo
          if is_new_cosmo and has_high_d_mod:
             known_cosmo.append(tpl_dims)
-            ubreaks, tebreaks, sols, mult_string = compute_cosmology(qdims, qmult, mQ, verbose=verbose)
+            ubreaks, tebreaks, sols, dims, mults = compute_cosmology(qdims, qmult, mQ, eft_scale, verbose=verbose)
+            mult_string = dim_signature(qdims, qmult)
             output_file = "/Users/sebhoof/Software/ksvz_axion_catalogue/output/cosmo/alt_cosmo"+mult_string+".dat"
-            wBBN, _ = save_cosmology(ubreaks, tebreaks, sols, mQ, output_file, plot=False, verbose=False)
-            bbn_check = (wBBN > bbn_threshold)
+            wBBN, _ = save_cosmology(ubreaks, tebreaks, sols, dims, mults, mQ, output_file, plot=False)
+            bbn_check = (wBBN > w_threshold)
             omh2 = omh2_axion(mQ, output_file, thetai)
             omh2_check = (omh2 < omh2_threshold)
             if omh2_check:
@@ -307,7 +328,7 @@ def check_additive_model_root_finding(mQ: float, models, lp_threshold: float, bb
                   print(f"New case: {tpl_dims} | wBBn = {wBBN:.4f}, omh2 = {omh2:.2e}.", flush=True)
    return models_to_add, wBBN_max, omh2_min
 
-def models_for_root_finding(mQ, reps: list[int], nq_max: int = 31, lp_threshold: float = 1.0e18, bbn_threshold: float = 0.9, omh2_threshold: float = PLANCK18_OMH2_LIMIT, verbose: bool = False) -> None:
+def models_for_root_finding(mQ, reps: list[int], nq_max: int = 31, lp_threshold: float = 1.0e18, w_threshold: float = 0.3, omh2_threshold: float = PLANCK18_OMH2_LIMIT, eft_scale=M_PLANCK, verbose: bool = False) -> None:
    t0 = time.time()
    wBBN_max, omh2_min = 0, np.inf
    catalogue_data = []
@@ -324,7 +345,7 @@ def models_for_root_finding(mQ, reps: list[int], nq_max: int = 31, lp_threshold:
          if verbose:
             print("No models to extend for m_Q = {:.2e} GeV and N_Q = {:d}.".format(mQ, nQ), flush=True)
          continue
-      models_to_add, wBBN, omh2 = check_additive_model_root_finding(mQ, models, lp_threshold, bbn_threshold, omh2_threshold, verbose=verbose)
+      models_to_add, wBBN, omh2 = check_additive_model_root_finding(mQ, models, lp_threshold, w_threshold, omh2_threshold, eft_scale, verbose=verbose)
       wBBN_max = max(wBBN, wBBN_max)
       omh2_min = min(omh2, omh2_min)
       n_valid_models = len(models_to_add)
