@@ -339,10 +339,8 @@ def find_LP(model: list[int], mQ: float = 5e11, lp_threshold: float = 1e18, verb
     indLP = np.argmin(sol.y[:,-1])
     muLP = param_conversion(tLP)
     if plot:
-        # mu1 = convert(sol1.t)
         mu2 = param_conversion(sol.t)
         for i,c in enumerate(['r', 'b', 'orange']):
-            # plt.plot(mu1, sol1.y[i], c=c, ls='--')
             plt.plot(mu2, sol.y[i], c=c, label=f"$\\alpha_{(i+1):d}$")
         plt.gca().axvline(MASS_Z*np.exp(2*np.pi*tLP), c='k', ls='--')
         plt.gca().axhline(0, c='k', ls='--')
@@ -350,7 +348,7 @@ def find_LP(model: list[int], mQ: float = 5e11, lp_threshold: float = 1e18, verb
         plt.xlabel(r'$\mu$ [GeV]')
         plt.ylabel(r'$\alpha^{-1}$')
         plt.legend()
-        plt.savefig("running_SMpre.pdf")
+        plt.show()
     return muLP, indLP
 
 @njit
