@@ -44,9 +44,9 @@ def gammad(mQ: float, d: int, scale: float = M_PLANCK) -> float:
    if d == 4:
       return 0.125*mQ/np.pi
    p1 = 2*(d-4)
-   nf = d-3
-   nfm2fac = fast_factorial(nf-2)
-   return 0.25*mQ*pow(mQ/scale, p1)/(pow(4*np.pi, 2*nf-3)*nfm2fac*nfm2fac*(nf-1))
+   nfin = d-3
+   nfm2fac = fast_factorial(nfin-2)
+   return 0.25*mQ*pow(mQ/scale, p1)/(pow(4*np.pi, 2*nfin-3)*nfm2fac*nfm2fac*(nfin-1))
 
 
 ### Annihilation cross section ###
@@ -533,6 +533,8 @@ def eos_SM(te: float) -> float:
    """
    gamma_ratio = g_scaling(te)/gS_scaling(te)
    return gamma_ratio/3 - 1
+
+EOS_SM_BBN = eos_SM(T_BBN)
 
 @njit
 def eos(yvals: np.ndarray[float], qdims: np.ndarray[int], qmult: np.ndarray[int], mQ: float) -> float:
