@@ -25,4 +25,7 @@ PLANCK18_OMH2_LIMIT = 0.1222
 
 # Solver-specific constant
 Q_DILUTION_FAC = 1e-20
-T_BBN = 1.0e-3 # BBN temperature in GeV
+# BBN temperature
+T_BBN = 0.001 # GeV
+# QCD temperature
+T_QCD = 0.160 # GeV
