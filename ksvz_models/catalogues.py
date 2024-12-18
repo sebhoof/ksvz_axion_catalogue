@@ -62,6 +62,9 @@ def extend_additive_models(models: np.ndarray[int], allowed_reps: np.ndarray[int
    return np.array(new_models, dtype='int')
 
 def append_data(file, gr_str: str, mods: np.ndarray[int], evals: np.ndarray[int], nvals: np.ndarray[int], lps: np.ndarray[float] = []) -> None:
+   """
+   Helper function to append data to an HDF5 file.
+   """
    file.create_group(gr_str)
    file[gr_str].create_dataset("model", data=mods, dtype='i2')
    file[gr_str].create_dataset("E", data=evals, dtype='i4')
@@ -79,6 +82,7 @@ def extend_all_models(set1: list[int], set2: list[int], repinfo: np.ndarray[int]
    rew_row = [e, n] + reps
    return rew_row
 
+"""
 def check_additive_model_fast(models, mQ, mindex, cosmo_dict, w_threshold: float, lp_threshold: float, omh2_threshold: float = PLANCK18_OMH2_LIMIT, thetai: float = 2.2, output_root: str = "output/catalogues/", verbose: bool = False) -> np.ndarray[int]:
    omh2_std = omh2_axion_sm(mQ, thetai)
    # wBBN_max, omh2_min = 0, np.inf
@@ -115,30 +119,25 @@ def check_additive_model_fast(models, mQ, mindex, cosmo_dict, w_threshold: float
          if bbn_check and omh2_check:
             new_models.append(m)
    return np.array(new_models, dtype='int')
+"""
 
-def check_additive_models(models: list[list[int]], mQ: float, mindex: int, w_threshold: float, omh2_threshold: float = PLANCK18_OMH2_LIMIT, thetai: float = 2.2, output_root: str = "output/catalogues/", cosmo_dict: dict = {}, verbose: bool = False) -> np.ndarray[int]:
+def check_additive_models(models: list[list[int]], mQ: float, mindex: int, w_threshold: float, omh2_threshold: float = PLANCK18_OMH2_LIMIT, thetai: float = 2.2, eft_scale: float = M_PLANCK, output_root: str = "output/catalogues/", cosmo_dict: dict = {}, verbose: bool = False) -> np.ndarray[int]:
    valid_additive_models = []
    omh2_std = omh2_axion_sm(mQ, thetai)
    wBBN_max, omh2_min = 0, np.inf
-   mQcrit = 5e10
    for m in models:
+      wBBN, omh2 = EOS_SM_BBN, omh2_std
       dims = np.array([min_dim_from_rep(r) for r in m], dtype='int')
-      if mQ < mQcrit:
-         if all(dims <= 5):
-            wBBN, omh2 = EOS_SM_BBN, omh2_std
-         else:
-            wBBN, omh2 = 0, np.nan
-      elif any(dims < 5):
-         wBBN, omh2 = EOS_SM_BBN, omh2_std
-      else:
+      # Don't have expressions for d = 3 operators, so use d = 4 (inconsequential)
+      d_max = max(4, max(dims))
+      std_cond = gammad(mQ, d=d_max, scale=eft_scale) > 100*H_QCD
+      if not(std_cond) and (d_max > 4):
          qdims, qmult = np.unique(dims[dims > 4], return_counts=True)
-         # tpl_dims = tuple([qmult[qdims==d0][0] if d0 in qdims else 0 for d0 in range(5,9)])
          mult_string = dim_signature(qdims, qmult)
          if mult_string in cosmo_dict:
             wBBN, omh2 = cosmo_dict[mult_string]
          else:
             ubreaks, tebreaks, sols, dims, mults = compute_cosmology(qdims, qmult, mQ, verbose=False)
-            # mult_string = dim_signature(qdims, qmult)
             output_file = output_root+"alt_cosmo"+mult_string+f"_m{mindex:d}.dat"
             wBBN, _ = save_cosmology(ubreaks, tebreaks, sols, dims, mults, mQ, output_file, plot=False)
             omh2 = omh2_axion(mQ, output_file, thetai)
@@ -161,9 +160,9 @@ def extend_all_models_fast(set1: list[int], set2: list[int]) -> list[int]:
       reps = list(set2) + [-r for r in set1]
    return reps
 
+"""
 def additive_catalogues_fast(masses: list[float], reps: list[int], lp_threshold: float = 1.0e18, w_threshold: float = 0.3, omh2_threshold: float = PLANCK18_OMH2_LIMIT, thetai: float = 2.2, output_root: str = "", verbose: bool = False) -> None:
    t0 = time.time()
-   # wBBN_max, omh2_min = 0, np.inf
    for i,mQ in enumerate(masses):
       nQ = 1
       additive_models = []
@@ -182,9 +181,6 @@ def additive_catalogues_fast(masses: list[float], reps: list[int], lp_threshold:
             models_to_extend = additive_models[nQ-2]
             new_models = extend_additive_models(models_to_extend, additive_models[0].T[0])
          models_to_add = check_additive_model_fast(new_models, mQ, i, cosmo_dict, w_threshold, lp_threshold, omh2_threshold, thetai=thetai, output_root=output_root, verbose=verbose)
-         # Save the min (max) value of wBBN (omh2) for the current mQ
-         # wBBN_max = max(wBBN, wBBN_max)
-         # omh2_min = min(omh2, omh2_min)
          n_valid_models = len(models_to_add)
          if verbose:
             print("Computed {:d} valid models for m_Q = {:.2e} GeV and N_Q = {:d} after {:.2f} mins.".format(n_valid_models, mQ, nQ, (time.time()-t1)/60), flush=True)
@@ -205,6 +201,7 @@ def additive_catalogues_fast(masses: list[float], reps: list[int], lp_threshold:
       with open(cosmo_fname, 'wb') as g:
          pickle.dump(cosmo_dict, g, protocol=pickle.HIGHEST_PROTOCOL)
    print("All tasks completed after {:.2f} mins.".format((time.time()-t0)/60), flush=True)
+"""
 
 def check_hdf5_file(h5name: str, mQ: float, lp_threshold: float, w_threshold: float, omh2_threshold: float) -> bool:
    checks = 0
@@ -216,17 +213,19 @@ def check_hdf5_file(h5name: str, mQ: float, lp_threshold: float, w_threshold: fl
          checks += (f.attrs["Omh2_threshold"] == omh2_threshold)
    return checks == 4
 
-def additive_catalogues(masses: list[float], reps: list[int], lp_threshold: float = 1.0e18, w_threshold: float = 0.3, omh2_threshold: float = PLANCK18_OMH2_LIMIT, thetai: float = 2.2, output_root: str = "", verbose: bool = False) -> None:
+def additive_catalogues(masses: list[float], reps: list[int], lp_threshold: float = 1.0e18, w_threshold: float = 0.3, omh2_threshold: float = PLANCK18_OMH2_LIMIT, thetai: float = 2.2, eft_scale: float = M_PLANCK, output_root: str = "", verbose: bool = False) -> None:
    t0 = time.time()
    wBBN_max, omh2_min = 0, np.inf
    for mindex,mQ in enumerate(masses):
+      omh2_std = omh2_axion_sm(mQ, thetai)
       nQ = 1
       base_models = []
       h5name = output_root+f"small_add_KSVZ_models_m{mindex:d}.h5"
-      if check_hdf5_file(h5name, mQ, lp_threshold, w_threshold, omh2_threshold):
-         if verbose:
-            print(f"File {h5name} already exists for m_Q = {mQ:.2e} GeV. Skipping...", flush=True)
-         continue
+      if output_root != "":
+         if check_hdf5_file(h5name, mQ, lp_threshold, w_threshold, omh2_threshold):
+            if verbose:
+               print(f"File {h5name} already exists for m_Q = {mQ:.2e} GeV. Skipping...", flush=True)
+            continue
       extend_models = True
       while extend_models:
          t1 = time.time()
@@ -235,36 +234,49 @@ def additive_catalogues(masses: list[float], reps: list[int], lp_threshold: floa
          else:
             models_to_extend = base_models[nQ-2]
             new_models = extend_additive_models(models_to_extend, base_models[0].T[0])
+         # Only perform first two checks for combined models
+         if nQ > 1:
+            # First, remove models that are clearly matter-dominated at BBN
+            max_dims = np.maximum(4, [max([min_dim_from_rep(r) for r in m]) for m in new_models])
+            md_cond = np.array([gammad(mQ, d=dim, scale=eft_scale) for dim in max_dims]) > 0.01*H_BBN
+            new_models = new_models[md_cond]
+            # Second, if the standard cosmology is excluded, exclude models that induce standard cosmology
+            if omh2_std > omh2_threshold:
+               max_dims = max_dims[md_cond]
+               rd_cond = np.array([gammad(mQ, d=dim, scale=eft_scale) for dim in max_dims]) < 100*H_QCD
+               new_models = new_models[rd_cond]
+         # Third, remove models that induce a LP below the threshold
          lp_cond = np.array([find_LP(m, mQ, lp_threshold, verbose=False, plot=False)[0] for m in new_models]) > lp_threshold
-         lp_allowed_models = new_models[lp_cond]
-         n_lp_allowed_models = len(lp_allowed_models)
-         if n_lp_allowed_models > 0:
-            base_models.append(lp_allowed_models)
+         new_models = new_models[lp_cond]
+         n_allowed_models = len(new_models)
+         if n_allowed_models > 0:
+            base_models.append(new_models)
             if verbose:
-               print(f"m_Q = {mQ:.2e} GeV, N_Q = {nQ:d}: {n_lp_allowed_models:d} LP-allowed models.", flush=True)
+               print(f"m_Q = {mQ:.2e} GeV, N_Q = {nQ:d}: {n_allowed_models:d} potentially allowed models.", flush=True)
          else:
             extend_models = False
             if verbose:
-               print(f"No more models for m_Q = {mQ:.2e} GeV and N_Q = {nQ:d}.", flush=True)
+               print(f"m_Q = {mQ:.2e} GeV, N_Q = {nQ:d}: no more potentially allowed models.", flush=True)
          nQ += 1
       additive_models, n_valid_models = [], 0
       cosmo_dict = {}
       for models in base_models:
-         valid_models, wBBN, omh2 = check_additive_models(models, mQ, mindex, w_threshold, omh2_threshold, thetai, output_root, cosmo_dict, verbose)
+         valid_models, wBBN, omh2 = check_additive_models(models, mQ, mindex, w_threshold, omh2_threshold, thetai, eft_scale, output_root, cosmo_dict, verbose)
          n_valid_models += len(valid_models)
          additive_models.append(valid_models)
          wBBN_max = max(wBBN, wBBN_max)
          omh2_min = min(omh2, omh2_min)
-      with h5.File(h5name, 'w') as f:
-         f.attrs["m_Q"] = mQ
-         f.attrs["LP_threshold"] = lp_threshold
-         f.attrs["EOS_threshold"] = w_threshold
-         f.attrs["Omh2_threshold"] = omh2_threshold
-         for nQm1,models in enumerate(additive_models):
-            gr_str = f"NQ{(nQm1+1):d}"
-            f.create_group(f"NQ{(nQm1+1):d}")
-            f[gr_str].create_dataset("model", data=models, dtype='i2')
-      print("Found {:d} valid models for m_Q = {:.2e} GeV and N_Q = {:d} after {:.2f} mins.".format(n_valid_models, mQ, nQ, (time.time()-t1)/60), flush=True)
+      if output_root != "":
+         with h5.File(h5name, 'w') as f:
+            f.attrs["m_Q"] = mQ
+            f.attrs["LP_threshold"] = lp_threshold
+            f.attrs["EOS_threshold"] = w_threshold
+            f.attrs["Omh2_threshold"] = omh2_threshold
+            for nQm1,models in enumerate(additive_models):
+               gr_str = f"NQ{(nQm1+1):d}"
+               f.create_group(f"NQ{(nQm1+1):d}")
+               f[gr_str].create_dataset("model", data=models, dtype='i2')
+      print("Found {:d} valid additive models for m_Q = {:.2e} GeV and N_Q < {:d} after {:.2f} mins.".format(n_valid_models, mQ, nQ, (time.time()-t1)/60), flush=True)
    if verbose:
       print("All tasks completed after {:.2f} mins.".format((time.time()-t0)/60), flush=True)
    return wBBN_max, omh2_min
@@ -273,6 +285,9 @@ def full_catalogues_from_additive_catalogues(mass_indices: list[int], output_roo
    t0 = time.time()
    for i in mass_indices:
       h5name = output_root+f"small_KSVZ_models_m{i:d}.h5"
+      if os.path.isfile(h5name):
+         print(f"File {h5name} already exists. Skipping...", flush=True)
+         continue
       h5name_add = output_root+f"small_add_KSVZ_models_m{i:d}.h5"
       if not os.path.isfile(h5name_add):
          raise RuntimeError(f"File {h5name_add} does not exist.")
@@ -306,69 +321,5 @@ def full_catalogues_from_additive_catalogues(mass_indices: list[int], output_roo
                data = np.vstack((data, new_rows))
          with h5.File(h5name, 'a') as f1:
             append_data(f1, gr, data[:,2:], data[:,0], data[:,1])
-         print("Computed {:d} new models for m_Q = {:.2e} GeV (N_Q = {:d}) after {:.2f} mins.".format(n_new_models, mQ, nQ, (time.time()-t1)/60), flush=True)
+         print("m_Q = {:.2e} GeV, N_Q = {:d}: computed {:d} new models after {:.2f} mins.".format(mQ, nQ, n_new_models, (time.time()-t1)/60), flush=True)
    print("All tasks completed after {:.2f} mins.".format((time.time()-t0)/60), flush=True)
-
-def check_additive_model_root_finding(mQ: float, models, lp_threshold: float, w_threshold: float = 0.3, omh2_threshold: float = PLANCK18_OMH2_LIMIT, thetai: float = 2.2, eft_scale: float = M_PLANCK, verbose: bool = False):
-   if mQ < 1e9:
-      raise ValueError("mQ must be at least 1e9 GeV for now.")
-   wBBN_max, omh2_min = 0, np.inf
-   models_to_add = []
-   known_cosmo = []
-   for m in models:
-      lp = find_LP(m, mQ, lp_threshold, plot=False)[0]
-      lp_check = (lp > lp_threshold)
-      if lp_check:
-         dims = np.array([min_dim_from_rep(r) for r in m], dtype='int')
-         dims = dims[dims > 4]
-         qdims, qmult = np.unique(dims, return_counts=True)
-         tpl_dims = tuple([qmult[qdims==d0][0] if d0 in qdims else 0 for d0 in range(5,9)])
-         has_high_d_mod = len(qdims) > 0
-         is_new_cosmo = tpl_dims not in known_cosmo
-         if is_new_cosmo and has_high_d_mod:
-            known_cosmo.append(tpl_dims)
-            ubreaks, tebreaks, sols, dims, mults = compute_cosmology(qdims, qmult, mQ, eft_scale, verbose=verbose)
-            mult_string = dim_signature(qdims, qmult)
-            output_file = "/Users/sebhoof/Software/ksvz_axion_catalogue/output/cosmo/alt_cosmo"+mult_string+".dat"
-            wBBN, _ = save_cosmology(ubreaks, tebreaks, sols, dims, mults, mQ, output_file, plot=False)
-            bbn_check = (wBBN > w_threshold)
-            omh2 = omh2_axion(mQ, output_file, thetai)
-            omh2_check = (omh2 < omh2_threshold)
-            if omh2_check:
-               wBBN_max = max(wBBN, wBBN_max)
-            if bbn_check:
-               omh2_min = min(omh2, omh2_min)
-            if bbn_check:
-               models_to_add.append(m)
-               if verbose:
-                  print(f"New case: {tpl_dims} | wBBn = {wBBN:.4f}, omh2 = {omh2:.2e}.", flush=True)
-   return models_to_add, wBBN_max, omh2_min
-
-def models_for_root_finding(mQ, reps: list[int], nq_max: int = 31, lp_threshold: float = 1.0e18, w_threshold: float = 0.3, omh2_threshold: float = PLANCK18_OMH2_LIMIT, thetai: float = 2.2, eft_scale=M_PLANCK, verbose: bool = False) -> None:
-   t0 = time.time()
-   wBBN_max, omh2_min = 0, np.inf
-   catalogue_data = []
-   extend_models = True
-   for nQ in range(1, nq_max+1):
-      t1 = time.time()
-      if nQ < 3:
-         models = np.array(list(combinations_with_replacement(reps, nQ)), dtype='int')
-      elif extend_models:
-         models_to_extend = catalogue_data[nQ-2]
-         allowed_reps = np.array(catalogue_data[0], dtype='int').T[0]
-         models = extend_additive_models(models_to_extend, allowed_reps)
-      else:
-         if verbose:
-            print("No models to extend for m_Q = {:.2e} GeV and N_Q = {:d}.".format(mQ, nQ), flush=True)
-         continue
-      models_to_add, wBBN, omh2 = check_additive_model_root_finding(mQ, models, lp_threshold, w_threshold, omh2_threshold, thetai, eft_scale=eft_scale, verbose=verbose)
-      wBBN_max = max(wBBN, wBBN_max)
-      omh2_min = min(omh2, omh2_min)
-      n_valid_models = len(models_to_add)
-      print("Computed {:d} valid models for m_Q = {:.2e} GeV and N_Q = {:d} after {:.2f} mins.".format(n_valid_models, mQ, nQ, (time.time()-t1)/60), flush=True)
-      if n_valid_models > 0:
-         catalogue_data.append(models_to_add)
-      else:
-         extend_models = False
-   print("All tasks completed after {:.2f} mins.".format((time.time()-t0)/60), flush=True)
-   return wBBN_max, omh2_min

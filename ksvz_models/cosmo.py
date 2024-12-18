@@ -361,7 +361,7 @@ def g_scaling(te: float) -> float:
    return 4
 
 @njit
-def hubble(te, rhoQ):
+def hubble(te: float, rhoQ: float = 0) -> float:
    """
    Compute the Hubble parameter.
 
@@ -380,6 +380,8 @@ def hubble(te, rhoQ):
    rhoR = rho_SM(te)
    return np.sqrt((rhoQ+rhoR)/3)/M_PLANCK_RED
 
+H_BBN = hubble(T_BBN)
+H_QCD = hubble(T_QCD)
 
 ### Boltzmann equation and supporting functions ###
 
@@ -406,7 +408,7 @@ def crossBBN(_: float, y: np.ndarray[float], *unused) -> float:
    -----
    - This function is to be used as an "event" for the ODE solver
    """
-   return y[0] - 1e-3
+   return y[0]/T_BBN - 1
 crossBBN.terminal = True
 
 @njit
@@ -481,7 +483,7 @@ def decayingQs(_: float, y: np.ndarray, mQ: float, qdims: np.ndarray[int], qmult
    s = n_s_SM(te)
    # Include inverse decays
    decays = np.array([gammad(mQ, d=d, scale=eft_scale) for d in qdims])*(nQ - nQeq)/h
-   # decays = np.array([gammad(mQ, d=d) for d in qdims])*nQ/h
+   # decays = np.array([gammad(mQ, d=d, scale=eft_scale) for d in qdims])*nQ/h
    annihilations = sigmav(te, mQ)*(nQ_sq - nQeq_sq)/h
    te_eq = [(-te + sum(decays)*eQ/(3*s))/gS_scaling(te)]
    q_eq = -3*nQ - decays - annihilations
