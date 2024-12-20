@@ -3,10 +3,10 @@
 import h5py as h5
 import numpy as np
 import os.path
-import pickle
+# import pickle
 import time
 
-from itertools import combinations_with_replacement
+# from itertools import combinations_with_replacement
 from numba import njit
 from sympy.utilities.iterables import multiset_partitions
 
@@ -309,12 +309,14 @@ def full_catalogues_from_additive_catalogues(mass_indices: list[int], output_roo
             additive_models = f0[gr]["model"][:]
          n_new_models = 0
          nQ = int(gr[2:])
-         if (nQ == 1):
+         if nQ == 1:
             eonvals = compute_eon_values(additive_models, repinfo)
             data = np.column_stack((eonvals, additive_models.flatten()))
          else:
             data = np.empty((0,nQ+2), dtype='int')
             for mod in additive_models:
+               new_rows = np.array([extend_all_models(mod, [], repinfo)], dtype='int')
+               data = np.vstack((data, new_rows))
                # N.B. multiset_partitions() expects a list as the first argument
                new_rows = np.array([extend_all_models(set1, set2, repinfo) for set1,set2 in multiset_partitions(list(mod),2)], dtype='int')
                n_new_models += len(new_rows)
