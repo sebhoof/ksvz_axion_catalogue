@@ -10,6 +10,8 @@ from numba import njit
 from scipy.integrate import solve_ivp
 from sys import path as sysPath
 
+# Add the path to the MiMeS library
+# @TODO: Include MiMeS as a subrepo or via CMake and automate this
 mimes_path = "/Users/sebhoof/Software/mimes/"
 sysPath.append(mimes_path+"/src/")
 from interfacePy.AxionMass import AxionMass
@@ -489,34 +491,6 @@ def decayingQs(_: float, y: np.ndarray, mQ: float, qdims: np.ndarray[int], qmult
    q_eq = -3*nQ - decays - annihilations
    q_eq = list(q_eq)
    return np.array(te_eq + q_eq)
-
-# @TODO: remove
-# @njit
-# def eos_old(te: float, nQ: float, mQ: float) -> float:
-#    """
-#    Compute the equation of state parameter w of the Universe from the Boltzmann equation.
-
-#    Parameters
-#    ----------
-#    te : float
-#       Temperature (in GeV)
-#    nQ : float
-#       Number density of the heavy quark (in GeV^3)
-#    mQ : float
-#       Mass of the heavy quark (in GeV)
-
-#    Returns
-#    -------
-#    float
-#       Equation of state parameter
-#    """
-#    nQeq = n_Q_eq(te, mQ)
-#    rhoQ = nQ*e_Q(te, mQ)
-#    h = hubble(te, rhoQ)
-#    rhoR = rho_SM(te)
-#    annihilations = sigmav(te, mQ)*(nQ*nQ - nQeq*nQeq)/h
-#    dhduh = (3*rhoQ + 4*rhoR + annihilations)/(6*pow(M_PLANCK_RED*h,2))
-#    return 2*dhduh/3 - 1
 
 @njit
 def eos_SM(te: float) -> float:

@@ -16,7 +16,7 @@ ALPHA_2_MZ = 0.033735 # +/- 0.000020
 ALPHA_S_MZ = 0.1173 # +/- 0.0007
 ALPHA_S_SQ = ALPHA_S_MZ*ALPHA_S_MZ
 
-# The fine structure constant
+# The fine structure constant [PDG 2024]
 ALPHA_EM = 1.0/137.035999206
 # zeta(3) = 1.2020569...
 ZETA3 = zeta(3)
@@ -27,5 +27,5 @@ PLANCK18_OMH2_LIMIT = 0.1222
 Q_DILUTION_FAC = 1e-20
 # BBN temperature
 T_BBN = 0.001 # GeV
-# QCD temperature
+# QCD temperature, e.g., [arXiv:1812.08235]
 T_QCD = 0.160 # GeV

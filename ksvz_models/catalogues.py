@@ -3,7 +3,6 @@
 import h5py as h5
 import numpy as np
 import os.path
-# import pickle
 import time
 
 # from itertools import combinations_with_replacement
