@@ -8,6 +8,7 @@ License: [BSD 3-clause license](LICENSE.txt)
 
 ### Table of Contents
  - [Results](#results) - Our papers
+ - [How to install](#how-to-install) - Learn how to install the code
  - [Get started](#get-started) - Learn how to use our code
  - [How to cite](#how-to-cite) - Guide to acknowledging this work in the literature
 
@@ -26,8 +27,16 @@ In &ldquo;Anomaly Ratio Distributions of Hadronic Axion Models with Multiple Hea
 
 Work in progress...
 
+## How to install
+
+The code is written in Python, so the scripts can be included and run after the following steps:
+- Install the required Python packages: `python -m pip install h5py matplotlib numba numpy scipy sympy`.
+- Install the MiMeS code, [available on Github](https://github.com/dkaramit/MiMeS/releases/tag/v1.0.0) (tested with v1.0.0).
+- Adjust the `mimes_path` variable in [cosmo.py](ksvz_models/cosmo.py) to point to the MiMeS path.
+
 ## Get started
-Work in progress... We will include a simple Jupyter notebook [examples.ipynb](examples.ipynb) to demonstrate a few calculations.
+
+Work in progress...
 
 ## How to cite
 
